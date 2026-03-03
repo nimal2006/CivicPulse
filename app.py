@@ -796,17 +796,24 @@ def get_accountability_stats():
 
 
 # ============================================================================
+# DATABASE INITIALIZATION (runs on import for gunicorn)
+# ============================================================================
+
+# Initialize database when app is imported (works with gunicorn)
+db.init_db()
+db.add_seed_data()
+print("CivicPulse database initialized!")
+
+
+# ============================================================================
 # APPLICATION ENTRY POINT
 # ============================================================================
 
 if __name__ == "__main__":
-    # Initialize database and add seed data
-    db.init_db()
-    db.add_seed_data()
-    
     print("CivicPulse API started with SQLite database!")
     print(f"Database: {db.DATABASE_PATH}")
     print(f"Loaded {db.count_issues()} issues")
     
     # Run the Flask development server
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=True, host="0.0.0.0", port=port)
