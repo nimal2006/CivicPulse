@@ -5,7 +5,7 @@ SQLite database setup and helper functions
 
 import sqlite3
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'civicpulse.db')
@@ -51,7 +51,10 @@ def init_db():
             password TEXT NOT NULL,
             name TEXT NOT NULL,
             email TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            is_blocked INTEGER DEFAULT 0,
+            blocked_reason TEXT DEFAULT '',
+            blocked_at TEXT DEFAULT ''
         )
     ''')
     
@@ -78,6 +81,17 @@ def init_db():
     ''')
     
     conn.commit()
+    
+    # Migration: Add blocking columns to admins table if they don't exist
+    try:
+        cursor.execute("SELECT is_blocked FROM admins LIMIT 1")
+    except sqlite3.OperationalError:
+        # Column doesn't exist, add it
+        cursor.execute("ALTER TABLE admins ADD COLUMN is_blocked INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE admins ADD COLUMN blocked_reason TEXT DEFAULT ''")
+        cursor.execute("ALTER TABLE admins ADD COLUMN blocked_at TEXT DEFAULT ''")
+        conn.commit()
+        print("Migration: Added admin blocking columns")
     
     # Seed admin if not exists
     cursor.execute("SELECT COUNT(*) FROM admins WHERE username = 'admin'")
@@ -373,6 +387,110 @@ def count_user_issues(username):
     resolved = cursor.fetchone()[0]
     conn.close()
     return {"total": total, "resolved": resolved}
+
+# Admin blocking operations
+def get_overdue_issues(days=3):
+    """Get issues assigned but not resolved within specified days"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    threshold_date = (datetime.now() - timedelta(days=days)).isoformat()
+    
+    cursor.execute('''
+        SELECT i.*, 
+               julianday('now') - julianday(i.assigned_at) as days_overdue
+        FROM issues i
+        WHERE i.assigned_to != '' 
+        AND i.assigned_to IS NOT NULL
+        AND i.status != 'Resolved'
+        AND i.assigned_at IS NOT NULL
+        AND i.assigned_at < ?
+        ORDER BY days_overdue DESC
+    ''', (threshold_date,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict_from_row(row) for row in rows]
+
+def get_admins_with_overdue_issues(days=3):
+    """Get admins who have overdue issues"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    threshold_date = (datetime.now() - timedelta(days=days)).isoformat()
+    
+    cursor.execute('''
+        SELECT a.*, COUNT(i.id) as overdue_count,
+               MAX(julianday('now') - julianday(i.assigned_at)) as max_days_overdue
+        FROM admins a
+        LEFT JOIN issues i ON i.assigned_to = a.username 
+            AND i.status != 'Resolved' 
+            AND i.assigned_at IS NOT NULL
+            AND i.assigned_at < ?
+        GROUP BY a.id
+        HAVING overdue_count > 0
+        ORDER BY overdue_count DESC
+    ''', (threshold_date,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict_from_row(row) for row in rows]
+
+def block_admin(admin_id, reason="Overdue issues not resolved"):
+    """Block an admin account"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE admins 
+        SET is_blocked = 1, blocked_reason = ?, blocked_at = ?
+        WHERE id = ?
+    ''', (reason, datetime.now().isoformat(), admin_id))
+    conn.commit()
+    conn.close()
+    return True
+
+def unblock_admin(admin_id):
+    """Unblock an admin account"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE admins 
+        SET is_blocked = 0, blocked_reason = '', blocked_at = ''
+        WHERE id = ?
+    ''', (admin_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+def get_all_admins():
+    """Get all admins with their status"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM admins ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict_from_row(row) for row in rows]
+
+def get_admin_by_id(admin_id):
+    """Get admin by ID"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM admins WHERE id = ?", (admin_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict_from_row(row)
+
+def auto_block_admins_with_overdue(days=3):
+    """Automatically block admins who have overdue issues"""
+    admins_with_overdue = get_admins_with_overdue_issues(days)
+    blocked_count = 0
+    
+    for admin in admins_with_overdue:
+        if not admin.get('is_blocked'):
+            block_admin(admin['id'], f"Auto-blocked: {admin['overdue_count']} issue(s) not resolved in {days}+ days")
+            blocked_count += 1
+    
+    return blocked_count
 
 # Seed sample data
 def add_seed_data():

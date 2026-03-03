@@ -69,6 +69,21 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def require_auth(admin_only=False):
+    """Flexible auth decorator supporting admin_only mode"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if admin_only:
+                if 'admin_id' not in session:
+                    return jsonify({"error": "Admin access required"}), 403
+            else:
+                if 'user_id' not in session and 'admin_id' not in session:
+                    return jsonify({"error": "Authentication required"}), 401
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 def get_current_user():
     """Get current logged-in user info"""
     if 'user_id' in session:
@@ -258,6 +273,15 @@ def admin_login():
     
     admin = db.get_admin_by_username(username)
     if admin and admin["password"] == password_hash:
+        # Check if admin is blocked
+        if admin.get("is_blocked"):
+            return jsonify({
+                "error": "Account blocked",
+                "blocked": True,
+                "reason": admin.get("blocked_reason", "Your account has been blocked due to unresolved issues."),
+                "blocked_at": admin.get("blocked_at", "")
+            }), 403
+        
         session['admin_id'] = admin['id']
         session['username'] = username
         session['role'] = 'admin'
@@ -678,6 +702,97 @@ def export_issues():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment;filename=civicpulse_issues.csv"}
     )
+
+
+# ============================================================================
+# ADMIN ACCOUNTABILITY & BLOCKING SYSTEM
+# ============================================================================
+
+@app.route("/api/admin/overdue-issues", methods=["GET"])
+@require_auth(admin_only=True)
+def get_overdue_issues():
+    """Get issues that have been assigned but not resolved within deadline"""
+    days = request.args.get('days', 3, type=int)
+    overdue = db.get_overdue_issues(days)
+    return jsonify({
+        "overdue_issues": overdue,
+        "count": len(overdue),
+        "deadline_days": days
+    }), 200
+
+@app.route("/api/admin/list", methods=["GET"])
+@require_auth(admin_only=True)
+def get_all_admins():
+    """Get all admin accounts with their status"""
+    admins = db.get_all_admins()
+    # Remove passwords from response
+    safe_admins = [{k: v for k, v in admin.items() if k != 'password'} for admin in admins]
+    return jsonify({"admins": safe_admins}), 200
+
+@app.route("/api/admin/with-overdue", methods=["GET"])
+@require_auth(admin_only=True)
+def get_admins_with_overdue():
+    """Get admins who have overdue issues"""
+    days = request.args.get('days', 3, type=int)
+    admins = db.get_admins_with_overdue_issues(days)
+    safe_admins = [{k: v for k, v in admin.items() if k != 'password'} for admin in admins]
+    return jsonify({
+        "admins_with_overdue": safe_admins,
+        "deadline_days": days
+    }), 200
+
+@app.route("/api/admin/<int:admin_id>/block", methods=["POST"])
+@require_auth(admin_only=True)
+def block_admin(admin_id):
+    """Block an admin account"""
+    data = request.get_json() or {}
+    reason = data.get('reason', 'Blocked by administrator')
+    
+    # Prevent self-blocking
+    if session.get('admin_id') == admin_id:
+        return jsonify({"error": "Cannot block your own account"}), 400
+    
+    db.block_admin(admin_id, reason)
+    return jsonify({"message": "Admin blocked successfully", "admin_id": admin_id}), 200
+
+@app.route("/api/admin/<int:admin_id>/unblock", methods=["POST"])
+@require_auth(admin_only=True)
+def unblock_admin(admin_id):
+    """Unblock an admin account"""
+    db.unblock_admin(admin_id)
+    return jsonify({"message": "Admin unblocked successfully", "admin_id": admin_id}), 200
+
+@app.route("/api/admin/auto-block-check", methods=["POST"])
+@require_auth(admin_only=True)
+def auto_block_check():
+    """Check and auto-block admins with overdue issues"""
+    days = request.get_json().get('days', 3) if request.get_json() else 3
+    blocked_count = db.auto_block_admins_with_overdue(days)
+    return jsonify({
+        "message": f"Auto-block check completed. {blocked_count} admin(s) blocked.",
+        "blocked_count": blocked_count
+    }), 200
+
+@app.route("/api/admin/accountability-stats", methods=["GET"])
+@require_auth(admin_only=True)
+def get_accountability_stats():
+    """Get admin accountability statistics"""
+    days = request.args.get('days', 3, type=int)
+    
+    overdue_issues = db.get_overdue_issues(days)
+    admins_with_overdue = db.get_admins_with_overdue_issues(days)
+    all_admins = db.get_all_admins()
+    
+    blocked_count = sum(1 for a in all_admins if a.get('is_blocked'))
+    
+    return jsonify({
+        "total_admins": len(all_admins),
+        "blocked_admins": blocked_count,
+        "active_admins": len(all_admins) - blocked_count,
+        "admins_with_overdue": len(admins_with_overdue),
+        "overdue_issues_count": len(overdue_issues),
+        "deadline_days": days
+    }), 200
 
 
 # ============================================================================
