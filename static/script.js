@@ -1526,3 +1526,258 @@ function escalateToAuthority(authorityName, contactNumber) {
     );
   }, 2500);
 }
+
+// ============================================
+// AUTHENTICATION FUNCTIONS
+// ============================================
+
+let currentUser = null;
+
+// Check authentication on page load
+async function checkAuth() {
+  try {
+    const res = await fetch("/api/auth/me", { credentials: "include" });
+    const data = await res.json();
+
+    if (data.authenticated) {
+      currentUser = data.user;
+      showLoggedInUI(data.user, data.role);
+    } else {
+      showLoggedOutUI();
+    }
+  } catch (err) {
+    console.log("Auth check failed:", err);
+    showLoggedOutUI();
+  }
+}
+
+function showLoggedInUI(user, role) {
+  const authButtons = document.getElementById("auth-buttons");
+  const userMenu = document.getElementById("user-menu");
+  const userName = document.getElementById("user-name");
+
+  if (authButtons) authButtons.style.display = "none";
+  if (userMenu) userMenu.style.display = "block";
+  if (userName) userName.textContent = user.name || user.username;
+}
+
+function showLoggedOutUI() {
+  const authButtons = document.getElementById("auth-buttons");
+  const userMenu = document.getElementById("user-menu");
+
+  if (authButtons) authButtons.style.display = "flex";
+  if (userMenu) userMenu.style.display = "none";
+  currentUser = null;
+}
+
+// User menu dropdown toggle
+document.addEventListener("DOMContentLoaded", () => {
+  const userMenuBtn = document.getElementById("user-menu-btn");
+  const userDropdown = document.getElementById("user-dropdown");
+
+  if (userMenuBtn && userDropdown) {
+    userMenuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      userDropdown.classList.toggle("active");
+    });
+
+    document.addEventListener("click", () => {
+      userDropdown.classList.remove("active");
+    });
+  }
+
+  // Check auth on load
+  checkAuth();
+});
+
+// Logout function
+async function logout() {
+  try {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+    currentUser = null;
+    showLoggedOutUI();
+    showToast("Logged out successfully", "success");
+  } catch (err) {
+    showToast("Logout failed", "error");
+  }
+}
+
+// Profile Modal Functions
+function openProfileModal() {
+  if (!currentUser) {
+    showToast("Please login first", "error");
+    return;
+  }
+
+  const modal = document.getElementById("profile-modal");
+  if (modal) {
+    // Populate form fields
+    document.getElementById("profile-name").value = currentUser.name || "";
+    document.getElementById("profile-username").value =
+      currentUser.username || "";
+    document.getElementById("profile-email").value = currentUser.email || "";
+    document.getElementById("profile-phone").value = currentUser.phone || "";
+    document.getElementById("profile-address").value =
+      currentUser.address || "";
+
+    // Load stats
+    loadProfileStats();
+
+    modal.classList.add("active");
+  }
+}
+
+function closeProfileModal() {
+  const modal = document.getElementById("profile-modal");
+  if (modal) modal.classList.remove("active");
+}
+
+async function loadProfileStats() {
+  try {
+    const res = await fetch("/api/user/profile", { credentials: "include" });
+    const data = await res.json();
+
+    document.getElementById("profile-issues-count").textContent =
+      data.issues_reported || 0;
+    document.getElementById("profile-resolved-count").textContent =
+      data.issues_resolved || 0;
+  } catch (err) {
+    console.log("Failed to load profile stats:", err);
+  }
+}
+
+// Profile form submission
+document.addEventListener("DOMContentLoaded", () => {
+  const profileForm = document.getElementById("profile-form");
+  if (profileForm) {
+    profileForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData);
+
+      try {
+        const res = await fetch("/api/user/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+          credentials: "include",
+        });
+
+        const result = await res.json();
+
+        if (res.ok) {
+          currentUser = result.user;
+          document.getElementById("user-name").textContent = currentUser.name;
+          showToast("Profile updated successfully", "success");
+          closeProfileModal();
+        } else {
+          showToast(result.error || "Failed to update profile", "error");
+        }
+      } catch (err) {
+        showToast("Connection error", "error");
+      }
+    });
+  }
+});
+
+// Change Password Modal
+function openChangePasswordModal() {
+  const modal = document.getElementById("password-modal");
+  if (modal) modal.classList.add("active");
+}
+
+function closeChangePasswordModal() {
+  const modal = document.getElementById("password-modal");
+  if (modal) modal.classList.remove("active");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const passwordForm = document.getElementById("password-form");
+  if (passwordForm) {
+    passwordForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData);
+
+      try {
+        const res = await fetch("/api/user/change-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+          credentials: "include",
+        });
+
+        const result = await res.json();
+
+        if (res.ok) {
+          showToast("Password changed successfully", "success");
+          closeChangePasswordModal();
+          e.target.reset();
+        } else {
+          showToast(result.error || "Failed to change password", "error");
+        }
+      } catch (err) {
+        showToast("Connection error", "error");
+      }
+    });
+  }
+});
+
+// My Issues Modal
+async function viewMyIssues() {
+  if (!currentUser) {
+    showToast("Please login first", "error");
+    return;
+  }
+
+  const modal = document.getElementById("my-issues-modal");
+  const list = document.getElementById("my-issues-list");
+
+  if (modal && list) {
+    modal.classList.add("active");
+    list.innerHTML =
+      '<p style="text-align: center; color: rgba(255,255,255,0.6);">Loading...</p>';
+
+    try {
+      const res = await fetch("/api/user/issues", { credentials: "include" });
+      const issues = await res.json();
+
+      if (issues.length === 0) {
+        list.innerHTML =
+          '<p style="text-align: center; color: rgba(255,255,255,0.6);">You haven\'t reported any issues yet.</p>';
+      } else {
+        list.innerHTML = issues
+          .map(
+            (issue) => `
+          <div class="my-issue-card">
+            <div class="my-issue-header">
+              <span class="my-issue-type">${issue.issue_type}</span>
+              <span class="my-issue-status ${issue.status.toLowerCase().replace(" ", "-")}">${issue.status}</span>
+            </div>
+            <div class="my-issue-description">${issue.description}</div>
+            <div class="my-issue-meta">
+              <span>📍 ${issue.latitude.toFixed(4)}, ${issue.longitude.toFixed(4)}</span>
+              <span>🕐 ${new Date(issue.created_at).toLocaleDateString()}</span>
+              <span>⚡ ${issue.severity}</span>
+            </div>
+          </div>
+        `,
+          )
+          .join("");
+      }
+    } catch (err) {
+      list.innerHTML =
+        '<p style="text-align: center; color: #fca5a5;">Failed to load issues</p>';
+    }
+  }
+}
+
+function closeMyIssuesModal() {
+  const modal = document.getElementById("my-issues-modal");
+  if (modal) modal.classList.remove("active");
+}
