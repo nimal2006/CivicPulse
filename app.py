@@ -7,16 +7,22 @@ Features:
 - CRUD operations for issues
 - Priority scoring based on severity and age
 - Statistics endpoint for dashboard
+- User and Admin authentication
+- Role-based access control
 """
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_cors import CORS
 from datetime import datetime, timedelta
+from functools import wraps
+import hashlib
+import secrets
 
 app = Flask(__name__)
+app.secret_key = secrets.token_hex(32)  # Secret key for sessions
 
 # Enable CORS for all routes to allow cross-origin requests from frontend
-CORS(app)
+CORS(app, supports_credentials=True)
 
 # ============================================================================
 # IN-MEMORY DATA STORAGE
@@ -28,10 +34,404 @@ issues = []
 # Auto-increment counter for issue IDs
 next_id = 1
 
+# User storage
+users = {}
+next_user_id = 1
+
+# Admin storage (pre-seeded)
+admins = {
+    "admin": {
+        "id": 1,
+        "username": "admin",
+        "password": hashlib.sha256("admin123".encode()).hexdigest(),
+        "name": "System Administrator",
+        "email": "admin@civicpulse.gov",
+        "created_at": datetime.now().isoformat()
+    }
+}
+
 # Valid values for issue fields (used for validation)
 VALID_ISSUE_TYPES = ["Garbage", "Water Leak", "Road Damage", "Fire", "Accident", "Streetlight", "Noise Complaint", "Other"]
 VALID_SEVERITIES = ["Low", "Medium", "High"]
 VALID_STATUSES = ["Reported", "In Progress", "Resolved"]
+
+
+# ============================================================================
+# AUTHENTICATION HELPERS
+# ============================================================================
+
+def hash_password(password):
+    """Hash a password using SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def login_required(f):
+    """Decorator to require user login"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session and 'admin_id' not in session:
+            return jsonify({"error": "Authentication required"}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    """Decorator to require admin login"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'admin_id' not in session:
+            return jsonify({"error": "Admin access required"}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+def get_current_user():
+    """Get current logged-in user info"""
+    if 'user_id' in session:
+        username = session.get('username')
+        return {"type": "user", "user": users.get(username)}
+    elif 'admin_id' in session:
+        username = session.get('username')
+        return {"type": "admin", "user": admins.get(username)}
+    return None
+
+
+# ============================================================================
+# AUTHENTICATION ROUTES
+# ============================================================================
+
+@app.route("/api/auth/register", methods=["POST"])
+def register():
+    """Register a new user"""
+    global next_user_id
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"error": "Request body required"}), 400
+    
+    required = ["username", "password", "name", "email", "phone"]
+    for field in required:
+        if field not in data or not data[field]:
+            return jsonify({"error": f"Missing field: {field}"}), 400
+    
+    username = data["username"].lower().strip()
+    
+    if username in users:
+        return jsonify({"error": "Username already exists"}), 400
+    
+    if len(data["password"]) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+    
+    new_user = {
+        "id": next_user_id,
+        "username": username,
+        "password": hash_password(data["password"]),
+        "name": data["name"],
+        "email": data["email"],
+        "phone": data["phone"],
+        "address": data.get("address", ""),
+        "created_at": datetime.now().isoformat(),
+        "issues_reported": 0,
+        "issues_resolved": 0
+    }
+    
+    users[username] = new_user
+    next_user_id += 1
+    
+    # Auto-login after registration
+    session['user_id'] = new_user['id']
+    session['username'] = username
+    session['role'] = 'user'
+    
+    return jsonify({
+        "message": "Registration successful",
+        "user": {k: v for k, v in new_user.items() if k != 'password'}
+    }), 201
+
+@app.route("/api/auth/login", methods=["POST"])
+def login():
+    """User login"""
+    data = request.get_json()
+    
+    if not data or "username" not in data or "password" not in data:
+        return jsonify({"error": "Username and password required"}), 400
+    
+    username = data["username"].lower().strip()
+    password_hash = hash_password(data["password"])
+    
+    if username in users and users[username]["password"] == password_hash:
+        user = users[username]
+        session['user_id'] = user['id']
+        session['username'] = username
+        session['role'] = 'user'
+        return jsonify({
+            "message": "Login successful",
+            "user": {k: v for k, v in user.items() if k != 'password'},
+            "role": "user"
+        }), 200
+    
+    return jsonify({"error": "Invalid username or password"}), 401
+
+@app.route("/api/auth/admin/login", methods=["POST"])
+def admin_login():
+    """Admin login"""
+    data = request.get_json()
+    
+    if not data or "username" not in data or "password" not in data:
+        return jsonify({"error": "Username and password required"}), 400
+    
+    username = data["username"].lower().strip()
+    password_hash = hash_password(data["password"])
+    
+    if username in admins and admins[username]["password"] == password_hash:
+        admin = admins[username]
+        session['admin_id'] = admin['id']
+        session['username'] = username
+        session['role'] = 'admin'
+        return jsonify({
+            "message": "Admin login successful",
+            "admin": {k: v for k, v in admin.items() if k != 'password'},
+            "role": "admin"
+        }), 200
+    
+    return jsonify({"error": "Invalid admin credentials"}), 401
+
+@app.route("/api/auth/logout", methods=["POST"])
+def logout():
+    """Logout current user/admin"""
+    session.clear()
+    return jsonify({"message": "Logged out successfully"}), 200
+
+@app.route("/api/auth/me", methods=["GET"])
+def get_current_session():
+    """Get current session info"""
+    current = get_current_user()
+    if current:
+        user_data = {k: v for k, v in current["user"].items() if k != 'password'}
+        return jsonify({
+            "authenticated": True,
+            "role": current["type"],
+            "user": user_data
+        }), 200
+    return jsonify({"authenticated": False}), 200
+
+
+# ============================================================================
+# USER PROFILE ROUTES
+# ============================================================================
+
+@app.route("/api/user/profile", methods=["GET"])
+@login_required
+def get_profile():
+    """Get user profile"""
+    current = get_current_user()
+    if not current:
+        return jsonify({"error": "Not authenticated"}), 401
+    
+    user_data = {k: v for k, v in current["user"].items() if k != 'password'}
+    
+    # Count user's issues
+    if current["type"] == "user":
+        username = session.get('username')
+        user_issues = [i for i in issues if i.get("reported_by") == username]
+        user_data["issues_reported"] = len(user_issues)
+        user_data["issues_resolved"] = len([i for i in user_issues if i["status"] == "Resolved"])
+    
+    return jsonify(user_data), 200
+
+@app.route("/api/user/profile", methods=["PUT"])
+@login_required
+def update_profile():
+    """Update user profile"""
+    if 'user_id' not in session:
+        return jsonify({"error": "User access required"}), 403
+    
+    data = request.get_json()
+    username = session.get('username')
+    
+    if username not in users:
+        return jsonify({"error": "User not found"}), 404
+    
+    user = users[username]
+    
+    # Update allowed fields
+    if "name" in data:
+        user["name"] = data["name"]
+    if "email" in data:
+        user["email"] = data["email"]
+    if "phone" in data:
+        user["phone"] = data["phone"]
+    if "address" in data:
+        user["address"] = data["address"]
+    
+    return jsonify({
+        "message": "Profile updated",
+        "user": {k: v for k, v in user.items() if k != 'password'}
+    }), 200
+
+@app.route("/api/user/issues", methods=["GET"])
+@login_required
+def get_user_issues():
+    """Get issues reported by current user"""
+    if 'user_id' not in session:
+        return jsonify({"error": "User access required"}), 403
+    
+    username = session.get('username')
+    user_issues = [i for i in issues if i.get("reported_by") == username]
+    
+    # Add priority scores
+    for issue in user_issues:
+        issue["priority_score"] = priority_score(issue)
+    
+    return jsonify(user_issues), 200
+
+@app.route("/api/user/change-password", methods=["POST"])
+@login_required
+def change_password():
+    """Change user password"""
+    if 'user_id' not in session:
+        return jsonify({"error": "User access required"}), 403
+    
+    data = request.get_json()
+    
+    if not data or "current_password" not in data or "new_password" not in data:
+        return jsonify({"error": "Current and new password required"}), 400
+    
+    username = session.get('username')
+    user = users.get(username)
+    
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    if user["password"] != hash_password(data["current_password"]):
+        return jsonify({"error": "Current password is incorrect"}), 400
+    
+    if len(data["new_password"]) < 6:
+        return jsonify({"error": "New password must be at least 6 characters"}), 400
+    
+    user["password"] = hash_password(data["new_password"])
+    
+    return jsonify({"message": "Password changed successfully"}), 200
+
+
+# ============================================================================
+# ADMIN ROUTES
+# ============================================================================
+
+@app.route("/admin")
+def admin_page():
+    """Serve admin dashboard page"""
+    return render_template("admin.html")
+
+@app.route("/api/admin/stats", methods=["GET"])
+@admin_required
+def admin_stats():
+    """Get detailed admin statistics"""
+    total_users = len(users)
+    total_issues = len(issues)
+    
+    # Issues by status
+    reported = len([i for i in issues if i["status"] == "Reported"])
+    in_progress = len([i for i in issues if i["status"] == "In Progress"])
+    resolved = len([i for i in issues if i["status"] == "Resolved"])
+    
+    # Issues by severity
+    high = len([i for i in issues if i["severity"] == "High"])
+    medium = len([i for i in issues if i["severity"] == "Medium"])
+    low = len([i for i in issues if i["severity"] == "Low"])
+    
+    # Issues by type
+    by_type = {}
+    for issue in issues:
+        t = issue["issue_type"]
+        by_type[t] = by_type.get(t, 0) + 1
+    
+    # Recent issues (last 24 hours)
+    recent_cutoff = datetime.now() - timedelta(hours=24)
+    recent_issues = len([i for i in issues if datetime.fromisoformat(i["created_at"]) > recent_cutoff])
+    
+    # Top reporters
+    reporters = {}
+    for issue in issues:
+        r = issue.get("reported_by", "anonymous")
+        reporters[r] = reporters.get(r, 0) + 1
+    top_reporters = sorted(reporters.items(), key=lambda x: x[1], reverse=True)[:5]
+    
+    return jsonify({
+        "total_users": total_users,
+        "total_issues": total_issues,
+        "issues_by_status": {
+            "reported": reported,
+            "in_progress": in_progress,
+            "resolved": resolved
+        },
+        "issues_by_severity": {
+            "high": high,
+            "medium": medium,
+            "low": low
+        },
+        "issues_by_type": by_type,
+        "recent_issues_24h": recent_issues,
+        "resolution_rate": round((resolved / total_issues * 100), 2) if total_issues > 0 else 0,
+        "top_reporters": [{"username": r[0], "count": r[1]} for r in top_reporters]
+    }), 200
+
+@app.route("/api/admin/users", methods=["GET"])
+@admin_required
+def get_all_users():
+    """Get all registered users"""
+    user_list = []
+    for username, user in users.items():
+        user_data = {k: v for k, v in user.items() if k != 'password'}
+        # Count user's issues
+        user_issues = [i for i in issues if i.get("reported_by") == username]
+        user_data["issues_count"] = len(user_issues)
+        user_list.append(user_data)
+    
+    return jsonify(user_list), 200
+
+@app.route("/api/admin/users/<username>", methods=["DELETE"])
+@admin_required
+def delete_user(username):
+    """Delete a user"""
+    if username not in users:
+        return jsonify({"error": "User not found"}), 404
+    
+    del users[username]
+    return jsonify({"message": f"User {username} deleted"}), 200
+
+@app.route("/api/admin/issues/<int:issue_id>/assign", methods=["POST"])
+@admin_required
+def assign_issue(issue_id):
+    """Assign an issue to a department/team"""
+    data = request.get_json()
+    
+    issue = next((i for i in issues if i["id"] == issue_id), None)
+    if not issue:
+        return jsonify({"error": "Issue not found"}), 404
+    
+    issue["assigned_to"] = data.get("assigned_to", "")
+    issue["assigned_at"] = datetime.now().isoformat()
+    issue["assigned_by"] = session.get('username')
+    
+    return jsonify(issue), 200
+
+@app.route("/api/admin/broadcast", methods=["POST"])
+@admin_required
+def send_broadcast():
+    """Send a broadcast notification (stored for demo)"""
+    data = request.get_json()
+    
+    if not data or "message" not in data:
+        return jsonify({"error": "Message required"}), 400
+    
+    # In a real app, this would send to all users via websockets/push
+    broadcast = {
+        "id": len(issues) + 1000,
+        "message": data["message"],
+        "type": data.get("type", "info"),
+        "sent_by": session.get('username'),
+        "sent_at": datetime.now().isoformat()
+    }
+    
+    return jsonify({"message": "Broadcast sent", "broadcast": broadcast}), 200
 
 
 # ============================================================================
@@ -86,6 +486,12 @@ def index():
     Returns the index.html template for the frontend application.
     """
     return render_template("index.html")
+
+
+@app.route("/login")
+def login_page():
+    """Serve the login/register page"""
+    return render_template("login.html")
 
 
 @app.route("/api/issues", methods=["GET"])
@@ -174,7 +580,10 @@ def create_issue():
         "severity": data["severity"],
         "status": "Reported",  # New issues always start as "Reported"
         "created_at": datetime.now().isoformat(),
-        "image": data.get("image", None)  # Optional image data (base64)
+        "image": data.get("image", None),  # Optional image data (base64)
+        "reported_by": session.get("username", "anonymous"),
+        "reporter_name": data.get("reporter_name", ""),
+        "reporter_contact": data.get("reporter_contact", "")
     }
     
     # Increment the ID counter for next issue

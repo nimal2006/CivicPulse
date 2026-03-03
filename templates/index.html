@@ -61,6 +61,23 @@
           <button class="btn btn-export" id="export-btn" title="Export to CSV">
             📥 Export
           </button>
+          <!-- Auth buttons (shown when not logged in) -->
+          <div id="auth-buttons" class="auth-buttons">
+            <a href="/login" class="btn btn-login">Login</a>
+            <a href="/admin" class="btn btn-admin">Admin</a>
+          </div>
+          <!-- User menu (shown when logged in) -->
+          <div id="user-menu" class="user-menu" style="display: none">
+            <button class="btn btn-user" id="user-menu-btn">
+              <span class="user-avatar">👤</span>
+              <span id="user-name">User</span>
+            </button>
+            <div class="user-dropdown" id="user-dropdown">
+              <a href="#" onclick="openProfileModal()">👤 My Profile</a>
+              <a href="#" onclick="viewMyIssues()">📋 My Issues</a>
+              <a href="#" onclick="logout()">🚪 Logout</a>
+            </div>
+          </div>
         </div>
       </div>
     </nav>
@@ -100,6 +117,11 @@
             </div>
           </div>
           <div class="stat-card health-card">
+            git remote add origin
+            https://github.com/YOUR_USERNAME/civicpulse.git git push -u origin
+            master git remote add origin
+            https://github.com/YOUR_USERNAME/civicpulse.git git push -u origin
+            master
             <div class="stat-icon health-icon">💚</div>
             <div class="stat-content">
               <span class="stat-value" id="stat-health">0%</span>
@@ -462,6 +484,134 @@
           <button class="btn btn-secondary" id="authorities-close-btn">
             Close
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div class="profile-modal-overlay" id="profile-modal">
+      <div class="profile-modal">
+        <div class="profile-modal-header">
+          <h2>My Profile</h2>
+          <button class="modal-close-btn" onclick="closeProfileModal()">
+            &times;
+          </button>
+        </div>
+        <div class="profile-modal-body">
+          <div class="profile-avatar-section">
+            <div class="profile-avatar-large">👤</div>
+            <div class="profile-stats">
+              <div class="profile-stat">
+                <span class="stat-num" id="profile-issues-count">0</span>
+                <span>Issues Reported</span>
+              </div>
+              <div class="profile-stat">
+                <span class="stat-num" id="profile-resolved-count">0</span>
+                <span>Resolved</span>
+              </div>
+            </div>
+          </div>
+          <form id="profile-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" id="profile-name" name="name" required />
+              </div>
+              <div class="form-group">
+                <label>Username</label>
+                <input
+                  type="text"
+                  id="profile-username"
+                  name="username"
+                  disabled
+                />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="profile-email" name="email" required />
+              </div>
+              <div class="form-group">
+                <label>Phone</label>
+                <input type="tel" id="profile-phone" name="phone" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Address</label>
+              <input
+                type="text"
+                id="profile-address"
+                name="address"
+                placeholder="Your address"
+              />
+            </div>
+            <div class="profile-actions">
+              <button type="submit" class="btn btn-primary">
+                Save Changes
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                onclick="openChangePasswordModal()"
+              >
+                Change Password
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div class="profile-modal-overlay" id="password-modal">
+      <div class="profile-modal" style="max-width: 400px">
+        <div class="profile-modal-header">
+          <h2>Change Password</h2>
+          <button class="modal-close-btn" onclick="closeChangePasswordModal()">
+            &times;
+          </button>
+        </div>
+        <div class="profile-modal-body">
+          <form id="password-form">
+            <div class="form-group">
+              <label>Current Password</label>
+              <input type="password" name="current_password" required />
+            </div>
+            <div class="form-group">
+              <label>New Password</label>
+              <input
+                type="password"
+                name="new_password"
+                required
+                minlength="6"
+              />
+            </div>
+            <div class="profile-actions">
+              <button type="submit" class="btn btn-primary">
+                Update Password
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Issues Modal -->
+    <div class="profile-modal-overlay" id="my-issues-modal">
+      <div class="profile-modal" style="max-width: 800px">
+        <div class="profile-modal-header">
+          <h2>My Reported Issues</h2>
+          <button class="modal-close-btn" onclick="closeMyIssuesModal()">
+            &times;
+          </button>
+        </div>
+        <div class="profile-modal-body">
+          <div id="my-issues-list" class="my-issues-list">
+            <p style="text-align: center; color: rgba(255, 255, 255, 0.6)">
+              Loading...
+            </p>
+          </div>
         </div>
       </div>
     </div>
