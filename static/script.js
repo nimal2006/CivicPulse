@@ -1592,15 +1592,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // Enable all dropdown options
     const dropdownLinks = userDropdown.querySelectorAll("a");
     dropdownLinks.forEach((link) => {
+      // Get and remove inline onclick to prevent double execution
+      const onclickAttr = link.getAttribute("onclick");
+      link.removeAttribute("onclick");
+      
       link.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         // Close dropdown
         userDropdown.classList.remove("active");
-        
+
         // Execute the onclick action
-        const onclickAttr = link.getAttribute("onclick");
         if (onclickAttr) {
           eval(onclickAttr);
         }
