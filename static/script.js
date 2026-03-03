@@ -1785,6 +1785,43 @@ function closeMyIssuesModal() {
   if (modal) modal.classList.remove("active");
 }
 
+// Notifications function
+function openNotifications() {
+  showToast("No new notifications", "info");
+}
+
+// Settings function
+function openSettings() {
+  // Open profile modal to settings tab or show settings toast
+  if (!currentUser) {
+    showToast("Please login first", "error");
+    return;
+  }
+  openProfileModal();
+  showToast("Settings available in profile", "info");
+}
+
+// Help function
+function openHelp() {
+  const helpContent = `
+    <h3>🆘 CivicPulse Help</h3>
+    <p><strong>Report an Issue:</strong> Click "Report Issue" to submit city problems.</p>
+    <p><strong>Track Issues:</strong> View issue status on the map and in the list.</p>
+    <p><strong>My Issues:</strong> See all issues you've reported.</p>
+    <p><strong>Analytics:</strong> View city-wide statistics and trends.</p>
+    <p><strong>Contact:</strong> support@civicpulse.com</p>
+  `;
+  showToast("Help Center - Check FAQ section", "info");
+}
+
+// Scroll to section function
+function scrollToSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (section) {
+    section.scrollIntoView({ behavior: "smooth" });
+  }
+}
+
 /* ============================================
    SMART CITY COMMAND CENTER FEATURES
    ============================================ */
