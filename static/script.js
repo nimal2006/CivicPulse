@@ -1584,6 +1584,29 @@ document.addEventListener("DOMContentLoaded", () => {
       userDropdown.classList.toggle("active");
     });
 
+    // Stop propagation on dropdown itself to keep it open
+    userDropdown.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+
+    // Enable all dropdown options
+    const dropdownLinks = userDropdown.querySelectorAll("a");
+    dropdownLinks.forEach((link) => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Close dropdown
+        userDropdown.classList.remove("active");
+        
+        // Execute the onclick action
+        const onclickAttr = link.getAttribute("onclick");
+        if (onclickAttr) {
+          eval(onclickAttr);
+        }
+      });
+    });
+
     document.addEventListener("click", () => {
       userDropdown.classList.remove("active");
     });
