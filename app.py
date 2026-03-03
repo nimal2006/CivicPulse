@@ -44,6 +44,103 @@ VALID_STATUSES = ["Reported", "In Progress", "Resolved"]
 
 
 # ============================================================================
+# AUTOMATED SEVERITY DETECTION
+# ============================================================================
+
+# Keywords that indicate high severity
+HIGH_SEVERITY_KEYWORDS = [
+    # Emergency/danger words
+    'emergency', 'urgent', 'critical', 'danger', 'dangerous', 'hazard', 'hazardous',
+    'life-threatening', 'death', 'dying', 'fatal', 'severe', 'serious',
+    # Fire-related
+    'fire', 'burning', 'flames', 'smoke', 'explosion', 'blast',
+    # Accident-related
+    'accident', 'crash', 'collision', 'injured', 'injury', 'casualties', 'victim',
+    'ambulance', 'hospital', 'blood', 'unconscious',
+    # Infrastructure danger
+    'collapse', 'collapsing', 'sinkhole', 'flood', 'flooding', 'electrocution',
+    'exposed wire', 'live wire', 'gas leak', 'chemical', 'toxic',
+    # Size/scale
+    'massive', 'huge', 'large', 'major', 'widespread', 'multiple', 'many',
+    'blocking', 'blocked', 'impassable'
+]
+
+# Keywords that indicate medium severity
+MEDIUM_SEVERITY_KEYWORDS = [
+    # Infrastructure issues
+    'pothole', 'crack', 'broken', 'damaged', 'leaking', 'leak', 'burst',
+    'not working', 'malfunctioning', 'faulty', 'defective',
+    # Environmental
+    'overflowing', 'overflow', 'smell', 'foul', 'stench', 'dirty',
+    'pollution', 'polluted', 'contaminated',
+    # Traffic/access
+    'traffic', 'congestion', 'slow', 'delay', 'obstruction',
+    # Duration/persistence
+    'days', 'week', 'weeks', 'month', 'persistent', 'ongoing', 'continuous',
+    # Health concerns
+    'health', 'disease', 'mosquito', 'insects', 'rats', 'pests'
+]
+
+# Issue types with inherent high severity
+HIGH_SEVERITY_TYPES = ['Fire', 'Accident']
+
+# Issue types with inherent medium severity
+MEDIUM_SEVERITY_TYPES = ['Road Damage', 'Water Leak']
+
+
+def detect_severity(issue_type, description):
+    """
+    Automatically detect severity level based on issue type and description.
+    Returns: tuple (severity_level, confidence_score, matched_keywords)
+    """
+    description_lower = description.lower()
+    matched_keywords = []
+    
+    # Check for high severity keywords
+    high_matches = [kw for kw in HIGH_SEVERITY_KEYWORDS if kw in description_lower]
+    matched_keywords.extend(high_matches)
+    
+    # Check for medium severity keywords
+    medium_matches = [kw for kw in MEDIUM_SEVERITY_KEYWORDS if kw in description_lower]
+    
+    # Calculate severity score
+    score = 0
+    
+    # Issue type base score
+    if issue_type in HIGH_SEVERITY_TYPES:
+        score += 70
+    elif issue_type in MEDIUM_SEVERITY_TYPES:
+        score += 40
+    else:
+        score += 20
+    
+    # Keyword scoring
+    score += len(high_matches) * 15
+    score += len(medium_matches) * 8
+    
+    # Description length bonus (longer descriptions often indicate more serious issues)
+    if len(description) > 200:
+        score += 10
+    elif len(description) > 100:
+        score += 5
+    
+    # Determine severity level
+    if score >= 70 or len(high_matches) >= 2:
+        severity = "High"
+        confidence = min(95, 60 + len(high_matches) * 10)
+    elif score >= 40 or len(medium_matches) >= 2:
+        severity = "Medium"
+        confidence = min(90, 50 + len(medium_matches) * 8 + len(high_matches) * 5)
+    else:
+        severity = "Low"
+        confidence = min(85, 40 + (40 - score))
+    
+    matched_keywords.extend(medium_matches)
+    
+    return severity, confidence, list(set(matched_keywords))
+
+
+# ============================================================================
 # AUTHENTICATION HELPERS
 # ============================================================================
 
@@ -535,6 +632,36 @@ def login_page():
 # ============================================================================
 # ISSUE ROUTES
 # ============================================================================
+
+@app.route("/api/auto-severity", methods=["POST"])
+def auto_detect_severity():
+    """POST /api/auto-severity - Automatically detect severity based on issue details."""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+    
+    issue_type = data.get("issue_type", "Other")
+    description = data.get("description", "")
+    
+    if not description:
+        return jsonify({"error": "Description is required for severity detection"}), 400
+    
+    severity, confidence, keywords = detect_severity(issue_type, description)
+    
+    return jsonify({
+        "severity": severity,
+        "confidence": confidence,
+        "matched_keywords": keywords,
+        "issue_type": issue_type,
+        "analysis": {
+            "description_length": len(description),
+            "is_emergency_type": issue_type in HIGH_SEVERITY_TYPES,
+            "high_keywords_found": len([k for k in keywords if k in HIGH_SEVERITY_KEYWORDS]),
+            "medium_keywords_found": len([k for k in keywords if k in MEDIUM_SEVERITY_KEYWORDS])
+        }
+    }), 200
+
 
 @app.route("/api/issues", methods=["GET"])
 def get_issues():

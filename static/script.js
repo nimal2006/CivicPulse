@@ -514,6 +514,74 @@ function updateStatsDisplay(stats) {
    ============================================ */
 
 /**
+ * Auto-detect severity based on issue type and description
+ * Calls the /api/auto-severity endpoint
+ */
+async function autoDetectSeverity() {
+  const issueType = document.getElementById("issue-type").value;
+  const description = document.getElementById("description").value;
+  const severitySelect = document.getElementById("severity");
+  const severityHint = document.getElementById("severity-hint");
+  const autoBtn = document.getElementById("auto-severity-btn");
+  
+  if (!description || description.trim().length < 10) {
+    showToast("Please enter a description (at least 10 characters) for auto-detection", "warning");
+    return;
+  }
+  
+  // Show loading state
+  autoBtn.disabled = true;
+  autoBtn.classList.add("loading");
+  autoBtn.innerHTML = "🔄 Analyzing...";
+  
+  try {
+    const response = await fetch("/api/auto-severity", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        issue_type: issueType || "Other",
+        description: description
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to detect severity");
+    }
+    
+    const result = await response.json();
+    
+    // Set the severity value
+    severitySelect.value = result.severity;
+    
+    // Show hint with analysis details
+    const severityEmoji = result.severity === "High" ? "🔴" : result.severity === "Medium" ? "🟡" : "🟢";
+    let hintText = `${severityEmoji} Auto-detected: <strong>${result.severity}</strong> (${result.confidence}% confidence)`;
+    
+    if (result.matched_keywords && result.matched_keywords.length > 0) {
+      const topKeywords = result.matched_keywords.slice(0, 3).join(", ");
+      hintText += `<br><small>Keywords: ${topKeywords}</small>`;
+    }
+    
+    severityHint.innerHTML = hintText;
+    severityHint.className = `severity-hint ${result.severity.toLowerCase()}`;
+    severityHint.style.display = "block";
+    
+    showToast(`Severity auto-detected: ${result.severity}`, "success");
+    
+  } catch (error) {
+    console.error("Auto-severity detection failed:", error);
+    showToast("Failed to auto-detect severity", "error");
+  } finally {
+    // Reset button state
+    autoBtn.disabled = false;
+    autoBtn.classList.remove("loading");
+    autoBtn.innerHTML = "🤖 Auto";
+  }
+}
+
+/**
  * Handle report form submission
  * POST to /api/issues, then refresh data
  */
@@ -1163,6 +1231,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     locationBtn.addEventListener("click", useCurrentLocation);
   }
 
+  // Setup auto-severity button
+  const autoSeverityBtn = document.getElementById("auto-severity-btn");
+  if (autoSeverityBtn) {
+    autoSeverityBtn.addEventListener("click", autoDetectSeverity);
+  }
+
   // Setup modal close handlers
   const modalClose = document.getElementById("modal-close");
   const modalCloseBtn = document.getElementById("modal-close-btn");
@@ -1595,7 +1669,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Get and remove inline onclick to prevent double execution
       const onclickAttr = link.getAttribute("onclick");
       link.removeAttribute("onclick");
-      
+
       link.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
