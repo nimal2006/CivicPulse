@@ -1,17 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark" data-mood="calm">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>
-      CivicPulse – Smart Public Issue & Emergency Intelligence System
-    </title>
+    <title>CivicPulse – Smart City Command Center Dashboard</title>
 
-    <!-- Google Font: Poppins -->
+    <!-- Google Fonts: Inter & Poppins -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
 
@@ -30,9 +28,61 @@
     />
   </head>
   <body>
+    <!-- Animated Background -->
+    <div class="animated-background">
+      <div class="bg-gradient"></div>
+      <div class="bg-mood-overlay"></div>
+      <div class="bg-glow-1"></div>
+      <div class="bg-glow-2"></div>
+      <div class="bg-glow-3"></div>
+      <div class="bg-grid"></div>
+    </div>
+
+    <!-- Custom Cursor -->
+    <div class="custom-cursor" id="custom-cursor"></div>
+
+    <!-- City Status Banner -->
+    <div class="city-status-banner stable" id="city-status-banner">
+      <div class="status-indicator">
+        <span class="status-dot"></span>
+        <span id="city-status-text">CITY STATUS: STABLE</span>
+      </div>
+      <span id="active-issues-count">0 Active Issues</span>
+    </div>
+
+    <!-- Real-time Activity Ticker -->
+    <div class="activity-ticker">
+      <div class="ticker-content" id="ticker-content">
+        <div class="ticker-item">
+          <span class="ticker-icon">🚀</span>
+          <span>CivicPulse Command Center Active</span>
+          <span class="ticker-time">Now</span>
+        </div>
+        <div class="ticker-separator"></div>
+        <div class="ticker-item">
+          <span class="ticker-icon">📡</span>
+          <span>Monitoring city infrastructure in real-time</span>
+        </div>
+        <div class="ticker-separator"></div>
+      </div>
+    </div>
+
+    <!-- Severity Heat Gradient Bar -->
+    <div class="severity-heat-bar">
+      <div class="heat-gradient" id="heat-gradient" data-severity="low"></div>
+    </div>
     <!-- Navbar -->
     <nav class="navbar">
       <div class="navbar-container">
+        <!-- Control Panel (Left) -->
+        <div class="control-panel">
+          <div class="digital-clock" id="digital-clock">00:00:00</div>
+          <div class="network-status online" id="network-status">
+            <span class="network-dot"></span>
+            <span>Online</span>
+          </div>
+        </div>
+
         <ul class="navbar-links">
           <li>
             <a
@@ -58,6 +108,13 @@
           <span class="logo-text">CivicPulse</span>
         </div>
         <div class="navbar-actions">
+          <!-- Theme Toggle -->
+          <div
+            class="theme-toggle"
+            id="theme-toggle"
+            title="Toggle Theme"
+          ></div>
+
           <button class="btn btn-export" id="export-btn" title="Export to CSV">
             📥 Export
           </button>
@@ -86,6 +143,40 @@
     <main class="main-container">
       <!-- Dashboard Section -->
       <section id="dashboard" class="section dashboard-section">
+        <!-- Glass Command Center Panel -->
+        <div class="command-center-glass">
+          <!-- Risk Pulse - City Heartbeat -->
+          <div class="risk-pulse-container">
+            <div class="city-heartbeat" id="city-heartbeat">
+              <div class="pulse-ring"></div>
+              <div class="pulse-ring"></div>
+              <div class="pulse-ring"></div>
+              <div class="city-name">
+                <h1>Smart City</h1>
+                <span>Command Center</span>
+              </div>
+              <div
+                class="cluster-count-badge"
+                id="cluster-badge"
+                style="display: none"
+              >
+                <span id="cluster-count">0</span> Clusters
+              </div>
+            </div>
+          </div>
+
+          <!-- Health Battery moved to fixed position -->
+        </div>
+
+        <!-- Timeline Filter -->
+        <div class="timeline-filter">
+          <button class="timeline-btn active" data-time="1h">1h</button>
+          <button class="timeline-btn" data-time="24h">24h</button>
+          <button class="timeline-btn" data-time="7d">7d</button>
+          <button class="timeline-btn" data-time="30d">30d</button>
+          <button class="timeline-btn" data-time="all">All</button>
+        </div>
+
         <!-- Dashboard cards -->
         <div class="stats-grid">
           <div class="stat-card">
@@ -116,16 +207,11 @@
               <span class="stat-label">Resolved</span>
             </div>
           </div>
-          <div class="stat-card health-card">
-            git remote add origin
-            https://github.com/YOUR_USERNAME/civicpulse.git git push -u origin
-            master git remote add origin
-            https://github.com/YOUR_USERNAME/civicpulse.git git push -u origin
-            master
-            <div class="stat-icon health-icon">💚</div>
+          <div class="stat-card response-card">
+            <div class="stat-icon response-icon">⏱️</div>
             <div class="stat-content">
-              <span class="stat-value" id="stat-health">0%</span>
-              <span class="stat-label">Civic Health Score</span>
+              <span class="stat-value" id="stat-response">--</span>
+              <span class="stat-label">Avg Response Time</span>
             </div>
           </div>
         </div>
@@ -169,10 +255,69 @@
           </div>
         </div>
 
+        <!-- AI Insight Panel -->
+        <div class="ai-insight-panel">
+          <div class="ai-header">
+            <span class="ai-icon">🤖</span>
+            <span class="ai-title">AI Insights</span>
+            <span class="ai-badge">LIVE</span>
+          </div>
+          <div class="ai-insights" id="ai-insights">
+            <div class="insight-item">
+              <span class="insight-icon">📊</span>
+              <span
+                >Analyzing city patterns... Monitoring infrastructure health in
+                real-time.</span
+              >
+            </div>
+            <div class="insight-item">
+              <span class="insight-icon">💡</span>
+              <span
+                >Tip: High-severity issues in specific areas may indicate
+                cluster formation.</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- Priority Leaderboard -->
+        <div class="priority-leaderboard">
+          <div class="leaderboard-header">
+            <span class="leaderboard-title">🔥 Priority Hot Zones</span>
+          </div>
+          <div class="leaderboard-list" id="leaderboard-list">
+            <div class="leaderboard-item skeleton skeleton-card">
+              <div class="skeleton-line short"></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Map -->
         <div class="map-container">
-          <h2 class="section-title">Issue Locations</h2>
+          <h2 class="section-title">🗺️ Issue Locations</h2>
           <div id="map"></div>
+          <div class="map-smart-controls">
+            <button
+              class="map-control-btn active"
+              id="btn-clusters"
+              title="Show Clusters"
+            >
+              🔴
+            </button>
+            <button class="map-control-btn" id="btn-heatmap" title="Heat Map">
+              🌡️
+            </button>
+            <button
+              class="map-control-btn"
+              id="btn-satellite"
+              title="Satellite View"
+            >
+              🛰️
+            </button>
+            <button class="map-control-btn" id="btn-center" title="Center Map">
+              🎯
+            </button>
+          </div>
         </div>
 
         <!-- Issue table -->
@@ -619,12 +764,197 @@
     <!-- Toast notification container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- Cursor Glow Effect -->
+    <!-- Cluster Alert Toast -->
+    <div class="cluster-alert-toast" id="cluster-alert-toast">
+      <div class="cluster-alert-header">
+        <span class="cluster-alert-icon">🚨</span>
+        <span class="cluster-alert-title">Cluster Alert!</span>
+      </div>
+      <p class="cluster-alert-message" id="cluster-alert-message">
+        Multiple issues detected in one area.
+      </p>
+    </div>
+
+    <!-- Side Drawer -->
+    <div class="drawer-backdrop" id="drawer-backdrop"></div>
+    <div class="side-drawer" id="side-drawer">
+      <div class="drawer-header">
+        <h3>Issue Details</h3>
+        <button class="drawer-close" id="drawer-close">&times;</button>
+      </div>
+      <div class="drawer-body" id="drawer-body">
+        <div class="drawer-section">
+          <h4 class="drawer-section-title">Lifecycle Tracker</h4>
+          <div class="lifecycle-tracker">
+            <div class="lifecycle-step completed" id="step-reported">
+              <div class="lifecycle-icon">📝</div>
+              <span class="lifecycle-label">Reported</span>
+            </div>
+            <div class="lifecycle-connector" id="connector-1"></div>
+            <div class="lifecycle-step" id="step-progress">
+              <div class="lifecycle-icon">⚙️</div>
+              <span class="lifecycle-label">In Progress</span>
+            </div>
+            <div class="lifecycle-connector" id="connector-2"></div>
+            <div class="lifecycle-step" id="step-resolved">
+              <div class="lifecycle-icon">✅</div>
+              <span class="lifecycle-label">Resolved</span>
+            </div>
+          </div>
+        </div>
+        <div class="drawer-section">
+          <h4 class="drawer-section-title">Cluster Danger Meter</h4>
+          <div class="cluster-danger-meter">
+            <div class="danger-meter-track">
+              <div
+                class="danger-meter-fill low"
+                id="danger-meter-fill"
+                style="width: 20%"
+              ></div>
+            </div>
+            <span class="danger-meter-label" id="danger-meter-label"
+              >Low Risk</span
+            >
+          </div>
+        </div>
+        <div class="drawer-section" id="drawer-issue-details">
+          <!-- Issue details populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Custom Cursor Trail -->
     <div class="cursor-glow" id="cursor-glow"></div>
     <div class="cursor-trail-container" id="cursor-trail"></div>
 
     <!-- Floating Particles Background -->
     <div class="particles-container" id="particles"></div>
+
+    <!-- ============================================
+         INNOVATIVE FEATURES
+         ============================================ -->
+
+    <!-- 1. Floating Quick Report Button (FAB) -->
+    <div class="fab-container">
+      <button class="fab-main" id="fab-main" title="Quick Actions">
+        <span class="fab-icon">⚡</span>
+      </button>
+      <div class="fab-menu" id="fab-menu">
+        <button class="fab-action" data-action="voice" title="Voice Report">
+          🎤
+        </button>
+        <button class="fab-action" data-action="photo" title="Photo Report">
+          📷
+        </button>
+        <button class="fab-action" data-action="quick" title="Quick Report">
+          📝
+        </button>
+        <button class="fab-action" data-action="sos" title="Emergency SOS">
+          🆘
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. Live Activity Feed Panel -->
+    <div class="live-feed-toggle" id="live-feed-toggle">
+      <span class="feed-pulse"></span>
+      <span>Live</span>
+    </div>
+    <div class="live-feed-panel" id="live-feed-panel">
+      <div class="live-feed-header">
+        <span class="live-indicator"></span>
+        <h3>Live Activity</h3>
+        <button class="feed-close" id="feed-close">&times;</button>
+      </div>
+      <div class="live-feed-content" id="live-feed-content">
+        <!-- Activities populated by JS -->
+      </div>
+    </div>
+
+    <!-- 3. Gamification Badge Display -->
+    <div class="citizen-badge-panel" id="citizen-badges">
+      <div class="badge-header">
+        <span>🏆</span>
+        <span>Citizen Level</span>
+      </div>
+      <div class="citizen-level" id="citizen-level">
+        <span class="level-badge">Lv.1</span>
+        <span class="level-name">Newcomer</span>
+      </div>
+      <div class="xp-bar">
+        <div class="xp-fill" id="xp-fill" style="width: 0%"></div>
+      </div>
+      <div class="earned-badges" id="earned-badges">
+        <!-- Badges populated by JS -->
+      </div>
+    </div>
+
+    <!-- Health Battery Gauge (Fixed Position) -->
+    <div class="health-battery-fixed" id="health-battery-widget">
+      <div class="battery-widget-header">
+        <span class="battery-icon">🔋</span>
+        <span>Civic Health</span>
+      </div>
+      <div class="battery-display">
+        <div class="battery-body">
+          <div class="battery-fill healthy" id="gauge-progress">
+            <div class="battery-glow"></div>
+          </div>
+          <div class="battery-segments">
+            <div class="segment"></div>
+            <div class="segment"></div>
+            <div class="segment"></div>
+            <div class="segment"></div>
+          </div>
+        </div>
+        <div class="battery-cap"></div>
+      </div>
+      <div class="battery-value-display">
+        <span class="gauge-value" id="gauge-value">0%</span>
+      </div>
+    </div>
+
+    <!-- 4. Weather Widget -->
+    <div class="weather-widget" id="weather-widget">
+      <div class="weather-icon" id="weather-icon">☀️</div>
+      <div class="weather-info">
+        <span class="weather-temp" id="weather-temp">--°C</span>
+        <span class="weather-condition" id="weather-condition">Loading...</span>
+      </div>
+      <div class="weather-impact" id="weather-impact">
+        <span class="impact-label">Issue Impact:</span>
+        <span class="impact-value">Normal</span>
+      </div>
+    </div>
+
+    <!-- 6. Voice Command Modal -->
+    <div class="voice-modal-overlay" id="voice-modal">
+      <div class="voice-modal">
+        <div class="voice-animation">
+          <div class="voice-ring"></div>
+          <div class="voice-ring"></div>
+          <div class="voice-ring"></div>
+          <span class="voice-icon">🎤</span>
+        </div>
+        <p class="voice-text" id="voice-text">Listening...</p>
+        <p class="voice-transcript" id="voice-transcript"></p>
+        <button class="voice-cancel" onclick="cancelVoiceReport()">
+          Cancel
+        </button>
+      </div>
+    </div>
+
+    <!-- 7. Confetti Container -->
+    <div class="confetti-container" id="confetti-container"></div>
+
+    <!-- 8. Achievement Toast -->
+    <div class="achievement-toast" id="achievement-toast">
+      <div class="achievement-icon">🏆</div>
+      <div class="achievement-content">
+        <span class="achievement-title">Achievement Unlocked!</span>
+        <span class="achievement-name" id="achievement-name">First Report</span>
+      </div>
+    </div>
 
     <!-- Leaflet JS -->
     <script

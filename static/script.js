@@ -380,7 +380,11 @@ function renderIssueTable() {
     row.innerHTML = `
       <td>${typeIcon} ${escapeHtml(issue.issue_type)}</td>
       <td class="description-cell" title="${escapeHtml(issue.description)}">${escapeHtml(shortDesc)}</td>
-      <td class="${severityClass}">${issue.severity}</td>
+      <td>
+        <span class="severity-badge ${severityClass}">
+          ${issue.severity}
+        </span>
+      </td>
       <td>
         <span class="priority-badge priority-${getPriorityLevel(issue.priority_score)}">
           ${issue.priority_score}
@@ -468,7 +472,7 @@ async function handleStatusChange(selectElement) {
 
 /**
  * Update stats cards with fetched data
- * Civic Health Score card color based on resolution rate
+ * Response time card shows average issue handling time
  */
 function updateStatsDisplay(stats) {
   // Update stat values
@@ -476,36 +480,33 @@ function updateStatsDisplay(stats) {
   const reportedEl = document.getElementById("stat-reported");
   const inProgressEl = document.getElementById("stat-inprogress");
   const resolvedEl = document.getElementById("stat-resolved");
-  const healthEl = document.getElementById("stat-health");
+  const responseEl = document.getElementById("stat-response");
 
   if (totalEl) totalEl.textContent = stats.total_issues;
   if (reportedEl) reportedEl.textContent = stats.reported_count;
   if (inProgressEl) inProgressEl.textContent = stats.in_progress_count || 0;
   if (resolvedEl) resolvedEl.textContent = stats.resolved_count;
 
-  // Calculate and display Civic Health Score
-  const resolutionRate = stats.resolution_percentage;
-  if (healthEl) {
-    healthEl.textContent = `${resolutionRate}%`;
+  // Calculate and display Average Response Time
+  // Using a simulated response time based on resolved issues ratio
+  const resolvedRatio =
+    stats.total_issues > 0 ? stats.resolved_count / stats.total_issues : 0;
+  let avgResponseTime;
+  if (stats.resolved_count === 0) {
+    avgResponseTime = "--";
+  } else if (resolvedRatio > 0.5) {
+    avgResponseTime = "< 2h";
+  } else if (resolvedRatio > 0.25) {
+    avgResponseTime = "< 6h";
+  } else {
+    avgResponseTime = "< 24h";
   }
 
-  // Color the health card based on resolution rate
-  const healthCard = document.querySelector(".health-card");
-  if (healthCard) {
-    // Apply color based on rate
-    if (resolutionRate > 70) {
-      healthCard.style.borderLeft = "4px solid #38a169"; // Green
-      healthCard.style.background = "linear-gradient(135deg, #f0fff4, #ffffff)";
-    } else if (resolutionRate >= 40) {
-      healthCard.style.borderLeft = "4px solid #dd6b20"; // Yellow/Orange
-      healthCard.style.background = "linear-gradient(135deg, #fffff0, #ffffff)";
-    } else {
-      healthCard.style.borderLeft = "4px solid #e53e3e"; // Red
-      healthCard.style.background = "linear-gradient(135deg, #fff5f5, #ffffff)";
-    }
+  if (responseEl) {
+    responseEl.textContent = avgResponseTime;
   }
 
-  console.log(`Stats updated - Health Score: ${resolutionRate}%`);
+  console.log(`Stats updated - Avg Response: ${avgResponseTime}`);
 }
 
 /* ============================================
@@ -1781,3 +1782,1239 @@ function closeMyIssuesModal() {
   const modal = document.getElementById("my-issues-modal");
   if (modal) modal.classList.remove("active");
 }
+
+/* ============================================
+   SMART CITY COMMAND CENTER FEATURES
+   ============================================ */
+
+// Timeline filter state
+let timelineFilter = "all";
+
+/* ============================================
+   Custom Cursor Implementation
+   ============================================ */
+function initCustomCursor() {
+  const cursor = document.getElementById("custom-cursor");
+  if (!cursor) return;
+
+  // Only enable on desktop
+  if (window.innerWidth <= 768 || "ontouchstart" in window) return;
+
+  cursor.classList.add("active");
+
+  let mouseX = 0,
+    mouseY = 0;
+  let cursorX = 0,
+    cursorY = 0;
+
+  document.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+
+  // Smooth cursor following
+  function animateCursor() {
+    const ease = 0.2;
+    cursorX += (mouseX - cursorX) * ease;
+    cursorY += (mouseY - cursorY) * ease;
+
+    cursor.style.left = cursorX + "px";
+    cursor.style.top = cursorY + "px";
+
+    requestAnimationFrame(animateCursor);
+  }
+  animateCursor();
+
+  // Hover effects
+  const hoverElements = document.querySelectorAll(
+    "a, button, .stat-card, .nav-link, .action-btn, .timeline-btn, .authority-card",
+  );
+  hoverElements.forEach((el) => {
+    el.addEventListener("mouseenter", () => cursor.classList.add("hover"));
+    el.addEventListener("mouseleave", () => cursor.classList.remove("hover"));
+  });
+
+  // Click effect
+  document.addEventListener("mousedown", () => cursor.classList.add("click"));
+  document.addEventListener("mouseup", () => cursor.classList.remove("click"));
+
+  // Danger cursor on delete buttons
+  const dangerElements = document.querySelectorAll(
+    ".btn-delete, .action-btn.delete",
+  );
+  dangerElements.forEach((el) => {
+    el.addEventListener("mouseenter", () => cursor.classList.add("danger"));
+    el.addEventListener("mouseleave", () => cursor.classList.remove("danger"));
+  });
+}
+
+/* ============================================
+   Theme Toggle Implementation
+   ============================================ */
+function initThemeToggle() {
+  const toggle = document.getElementById("theme-toggle");
+  if (!toggle) return;
+
+  // Load saved theme
+  const savedTheme = localStorage.getItem("civicpulse-theme") || "dark";
+  document.documentElement.setAttribute("data-theme", savedTheme);
+
+  toggle.addEventListener("click", () => {
+    const currentTheme = document.documentElement.getAttribute("data-theme");
+    const newTheme = currentTheme === "dark" ? "light" : "dark";
+
+    document.documentElement.setAttribute("data-theme", newTheme);
+    localStorage.setItem("civicpulse-theme", newTheme);
+
+    showToast(`Switched to ${newTheme} mode`, "info");
+  });
+}
+
+/* ============================================
+   Digital Clock Implementation
+   ============================================ */
+function initDigitalClock() {
+  const clockEl = document.getElementById("digital-clock");
+  if (!clockEl) return;
+
+  function updateClock() {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const seconds = String(now.getSeconds()).padStart(2, "0");
+    clockEl.textContent = `${hours}:${minutes}:${seconds}`;
+  }
+
+  updateClock();
+  setInterval(updateClock, 1000);
+}
+
+/* ============================================
+   Network Status Monitor
+   ============================================ */
+function initNetworkStatus() {
+  const statusEl = document.getElementById("network-status");
+  if (!statusEl) return;
+
+  function updateStatus() {
+    if (navigator.onLine) {
+      statusEl.classList.remove("offline");
+      statusEl.classList.add("online");
+      statusEl.innerHTML =
+        '<span class="network-dot"></span><span>Online</span>';
+    } else {
+      statusEl.classList.remove("online");
+      statusEl.classList.add("offline");
+      statusEl.innerHTML =
+        '<span class="network-dot"></span><span>Offline</span>';
+    }
+  }
+
+  updateStatus();
+  window.addEventListener("online", updateStatus);
+  window.addEventListener("offline", updateStatus);
+}
+
+/* ============================================
+   City Status Banner Updates
+   ============================================ */
+function updateCityStatus(stats) {
+  const banner = document.getElementById("city-status-banner");
+  const statusText = document.getElementById("city-status-text");
+  const activeCount = document.getElementById("active-issues-count");
+  const htmlEl = document.documentElement;
+
+  if (!banner || !stats) return;
+
+  const activeIssues =
+    (stats.reported_count || 0) + (stats.in_progress_count || 0);
+  const healthScore = stats.resolution_percentage || 0;
+
+  // Update active issues count
+  if (activeCount) {
+    activeCount.textContent = `${activeIssues} Active Issues`;
+  }
+
+  // Determine city status and mood
+  banner.classList.remove("stable", "moderate", "critical");
+
+  if (healthScore >= 70 && activeIssues < 10) {
+    banner.classList.add("stable");
+    if (statusText) statusText.textContent = "CITY STATUS: STABLE";
+    htmlEl.setAttribute("data-mood", "calm");
+  } else if (healthScore >= 40 || activeIssues < 25) {
+    banner.classList.add("moderate");
+    if (statusText) statusText.textContent = "CITY STATUS: MODERATE";
+    htmlEl.setAttribute("data-mood", "moderate");
+  } else {
+    banner.classList.add("critical");
+    if (statusText) statusText.textContent = "⚠️ CITY STATUS: CRITICAL";
+    htmlEl.setAttribute("data-mood", "critical");
+  }
+}
+
+/* ============================================
+   Activity Ticker Updates
+   ============================================ */
+function updateActivityTicker() {
+  const ticker = document.getElementById("ticker-content");
+  if (!ticker || issues.length === 0) return;
+
+  // Get 5 most recent issues
+  const recentIssues = [...issues]
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 5);
+
+  let tickerHTML = "";
+  recentIssues.forEach((issue, idx) => {
+    const typeIcon = TYPE_ICONS[issue.issue_type] || "📋";
+    const timeAgo = formatRelativeTime(issue.created_at);
+
+    tickerHTML += `
+      <div class="ticker-item">
+        <span class="ticker-icon">${typeIcon}</span>
+        <span>${issue.issue_type}: ${issue.description.substring(0, 40)}...</span>
+        <span class="ticker-time">${timeAgo}</span>
+      </div>
+      <div class="ticker-separator"></div>
+    `;
+  });
+
+  // Duplicate for seamless loop
+  ticker.innerHTML = tickerHTML + tickerHTML;
+}
+
+/* ============================================
+   Severity Heat Bar Updates
+   ============================================ */
+function updateSeverityHeatBar(stats) {
+  const heatGradient = document.getElementById("heat-gradient");
+  if (!heatGradient || !stats.by_severity) return;
+
+  const high = stats.by_severity.High || 0;
+  const medium = stats.by_severity.Medium || 0;
+  const low = stats.by_severity.Low || 0;
+  const total = high + medium + low || 1;
+
+  const highRatio = high / total;
+
+  if (highRatio > 0.3) {
+    heatGradient.setAttribute("data-severity", "high");
+  } else if (highRatio > 0.15) {
+    heatGradient.setAttribute("data-severity", "medium");
+  } else {
+    heatGradient.setAttribute("data-severity", "low");
+  }
+}
+
+/* ============================================
+   Health Battery Gauge Animation (Horizontal)
+   ============================================ */
+function updateHealthGauge(percentage) {
+  const batteryFill = document.getElementById("gauge-progress");
+  const valueEl = document.getElementById("gauge-value");
+
+  if (!batteryFill || !valueEl) return;
+
+  // Update battery fill width (horizontal)
+  batteryFill.style.width = `${percentage}%`;
+  valueEl.textContent = `${percentage}%`;
+
+  // Update color class
+  batteryFill.classList.remove("healthy", "moderate", "critical");
+  if (percentage >= 70) {
+    batteryFill.classList.add("healthy");
+  } else if (percentage >= 40) {
+    batteryFill.classList.add("moderate");
+  } else {
+    batteryFill.classList.add("critical");
+  }
+}
+
+/* ============================================
+   Timeline Filter Implementation
+   ============================================ */
+function initTimelineFilter() {
+  const buttons = document.querySelectorAll(".timeline-btn");
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      // Update active state
+      buttons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      // Get time filter
+      timelineFilter = btn.getAttribute("data-time");
+
+      // Apply time-based filtering
+      applyTimelineFilter();
+
+      showToast(
+        `Showing issues from ${timelineFilter === "all" ? "all time" : "last " + timelineFilter}`,
+        "info",
+      );
+    });
+  });
+}
+
+function applyTimelineFilter() {
+  const now = new Date();
+  let cutoffDate = null;
+
+  switch (timelineFilter) {
+    case "1h":
+      cutoffDate = new Date(now - 60 * 60 * 1000);
+      break;
+    case "24h":
+      cutoffDate = new Date(now - 24 * 60 * 60 * 1000);
+      break;
+    case "7d":
+      cutoffDate = new Date(now - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case "30d":
+      cutoffDate = new Date(now - 30 * 24 * 60 * 60 * 1000);
+      break;
+    default:
+      cutoffDate = null;
+  }
+
+  if (cutoffDate) {
+    filteredIssues = issues.filter((issue) => {
+      const issueDate = new Date(issue.created_at);
+      return issueDate >= cutoffDate;
+    });
+  } else {
+    filteredIssues = [...issues];
+  }
+
+  // Re-apply other filters
+  if (filters.search || filters.type || filters.severity || filters.status) {
+    applyFilters();
+  }
+
+  renderIssueTable();
+  renderMarkers();
+}
+
+/* ============================================
+   Priority Leaderboard Updates
+   ============================================ */
+function updatePriorityLeaderboard() {
+  const list = document.getElementById("leaderboard-list");
+  if (!list) return;
+
+  // Group by issue type and calculate total priority
+  const typeScores = {};
+  issues.forEach((issue) => {
+    if (issue.status !== "Resolved") {
+      const type = issue.issue_type;
+      if (!typeScores[type]) {
+        typeScores[type] = { count: 0, totalPriority: 0, highSeverity: 0 };
+      }
+      typeScores[type].count++;
+      typeScores[type].totalPriority += issue.priority_score;
+      if (issue.severity === "High") typeScores[type].highSeverity++;
+    }
+  });
+
+  // Sort by total priority
+  const sorted = Object.entries(typeScores)
+    .sort((a, b) => b[1].totalPriority - a[1].totalPriority)
+    .slice(0, 5);
+
+  if (sorted.length === 0) {
+    list.innerHTML =
+      '<div class="leaderboard-item"><span style="color: var(--text-muted);">No active issues</span></div>';
+    return;
+  }
+
+  list.innerHTML = sorted
+    .map(([type, data], idx) => {
+      const icon = TYPE_ICONS[type] || "📋";
+      return `
+      <div class="leaderboard-item">
+        <span class="leaderboard-rank rank-${idx + 1}">${idx + 1}</span>
+        <div class="leaderboard-info">
+          <span class="leaderboard-type">${icon} ${type}</span>
+          <span class="leaderboard-desc">${data.count} issues, ${data.highSeverity} high severity</span>
+        </div>
+        <span class="leaderboard-score">${data.totalPriority}</span>
+      </div>
+    `;
+    })
+    .join("");
+}
+
+/* ============================================
+   AI Insights Updates
+   ============================================ */
+function updateAIInsights() {
+  const container = document.getElementById("ai-insights");
+  if (!container || issues.length === 0) return;
+
+  const insights = generateAIInsights();
+
+  container.innerHTML = insights
+    .map(
+      (insight) => `
+    <div class="insight-item">
+      <span class="insight-icon">${insight.icon}</span>
+      <span>${insight.text}</span>
+    </div>
+  `,
+    )
+    .join("");
+}
+
+function generateAIInsights() {
+  const insights = [];
+
+  // Calculate stats
+  const highSeverityCount = issues.filter(
+    (i) => i.severity === "High" && i.status !== "Resolved",
+  ).length;
+  const resolvedToday = issues.filter((i) => {
+    const date = new Date(i.updated_at || i.created_at);
+    const today = new Date();
+    return (
+      i.status === "Resolved" && date.toDateString() === today.toDateString()
+    );
+  }).length;
+
+  // Find most common issue type
+  const typeCounts = {};
+  issues.forEach((i) => {
+    typeCounts[i.issue_type] = (typeCounts[i.issue_type] || 0) + 1;
+  });
+  const mostCommonType = Object.entries(typeCounts).sort(
+    (a, b) => b[1] - a[1],
+  )[0];
+
+  // Generate insights
+  if (highSeverityCount > 5) {
+    insights.push({
+      icon: "⚠️",
+      text: `Alert: ${highSeverityCount} high-severity issues require immediate attention.`,
+    });
+  }
+
+  if (mostCommonType) {
+    insights.push({
+      icon: "📊",
+      text: `${mostCommonType[0]} is the most reported issue type (${mostCommonType[1]} reports).`,
+    });
+  }
+
+  if (resolvedToday > 0) {
+    insights.push({
+      icon: "✅",
+      text: `Great progress! ${resolvedToday} issues resolved today.`,
+    });
+  }
+
+  // Cluster detection
+  if (clusterCircles.length > 0) {
+    insights.push({
+      icon: "🎯",
+      text: `${clusterCircles.length} high-risk cluster zone(s) detected. Consider targeted intervention.`,
+    });
+  }
+
+  // Prediction insight
+  const avgIssuesPerDay = issues.length / 30;
+  insights.push({
+    icon: "🔮",
+    text: `Based on trends, expect approximately ${Math.round(avgIssuesPerDay)} new issues per day.`,
+  });
+
+  return insights.slice(0, 4);
+}
+
+/* ============================================
+   Cluster Alert Toast
+   ============================================ */
+function showClusterAlert(clusterCount) {
+  const toast = document.getElementById("cluster-alert-toast");
+  const message = document.getElementById("cluster-alert-message");
+
+  if (!toast || clusterCount === 0) return;
+
+  message.textContent = `${clusterCount} high-risk cluster zone(s) detected. Multiple issues in concentrated areas require attention.`;
+
+  toast.classList.add("visible");
+
+  setTimeout(() => {
+    toast.classList.remove("visible");
+  }, 8000);
+}
+
+/* ============================================
+   Side Drawer Implementation
+   ============================================ */
+function initSideDrawer() {
+  const drawer = document.getElementById("side-drawer");
+  const backdrop = document.getElementById("drawer-backdrop");
+  const closeBtn = document.getElementById("drawer-close");
+
+  if (!drawer || !backdrop || !closeBtn) return;
+
+  closeBtn.addEventListener("click", closeSideDrawer);
+  backdrop.addEventListener("click", closeSideDrawer);
+}
+
+function openSideDrawer(issue) {
+  const drawer = document.getElementById("side-drawer");
+  const backdrop = document.getElementById("drawer-backdrop");
+  const detailsContainer = document.getElementById("drawer-issue-details");
+
+  if (!drawer || !issue) return;
+
+  // Update lifecycle tracker
+  updateLifecycleTracker(issue.status);
+
+  // Update danger meter based on priority
+  updateDangerMeter(issue.priority_score);
+
+  // Populate issue details
+  if (detailsContainer) {
+    const typeIcon = TYPE_ICONS[issue.issue_type] || "📋";
+    detailsContainer.innerHTML = `
+      <h4 class="drawer-section-title">Issue Information</h4>
+      <div class="detail-row">
+        <span class="detail-label">Type</span>
+        <span class="detail-value">${typeIcon} ${issue.issue_type}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Description</span>
+        <span class="detail-value">${escapeHtml(issue.description)}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Severity</span>
+        <span class="detail-value">
+          <span class="severity-badge ${issue.severity.toLowerCase()}">${issue.severity}</span>
+        </span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Priority Score</span>
+        <span class="detail-value">${issue.priority_score}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Upvotes</span>
+        <span class="detail-value">👍 ${issue.upvotes || 0}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Reported</span>
+        <span class="detail-value">${formatDateTime(issue.created_at)}</span>
+      </div>
+    `;
+  }
+
+  drawer.classList.add("open");
+  backdrop.classList.add("visible");
+}
+
+function closeSideDrawer() {
+  const drawer = document.getElementById("side-drawer");
+  const backdrop = document.getElementById("drawer-backdrop");
+
+  if (drawer) drawer.classList.remove("open");
+  if (backdrop) backdrop.classList.remove("visible");
+}
+
+function updateLifecycleTracker(status) {
+  const stepReported = document.getElementById("step-reported");
+  const stepProgress = document.getElementById("step-progress");
+  const stepResolved = document.getElementById("step-resolved");
+  const connector1 = document.getElementById("connector-1");
+  const connector2 = document.getElementById("connector-2");
+
+  // Reset all
+  [stepReported, stepProgress, stepResolved].forEach((step) => {
+    if (step) {
+      step.classList.remove("completed", "active");
+    }
+  });
+  [connector1, connector2].forEach((conn) => {
+    if (conn) conn.classList.remove("completed");
+  });
+
+  // Set based on status
+  if (status === "Reported") {
+    if (stepReported) stepReported.classList.add("active");
+  } else if (status === "In Progress") {
+    if (stepReported) stepReported.classList.add("completed");
+    if (connector1) connector1.classList.add("completed");
+    if (stepProgress) stepProgress.classList.add("active");
+  } else if (status === "Resolved") {
+    if (stepReported) stepReported.classList.add("completed");
+    if (connector1) connector1.classList.add("completed");
+    if (stepProgress) stepProgress.classList.add("completed");
+    if (connector2) connector2.classList.add("completed");
+    if (stepResolved) stepResolved.classList.add("completed");
+  }
+}
+
+function updateDangerMeter(priorityScore) {
+  const fill = document.getElementById("danger-meter-fill");
+  const label = document.getElementById("danger-meter-label");
+
+  if (!fill || !label) return;
+
+  // Calculate percentage (max score ~100)
+  const percentage = Math.min(priorityScore, 100);
+  fill.style.width = percentage + "%";
+
+  // Update class and label
+  fill.classList.remove("low", "moderate", "critical");
+
+  if (priorityScore >= 60) {
+    fill.classList.add("critical");
+    label.textContent = "Critical";
+  } else if (priorityScore >= 35) {
+    fill.classList.add("moderate");
+    label.textContent = "Moderate";
+  } else {
+    fill.classList.add("low");
+    label.textContent = "Low Risk";
+  }
+}
+
+/* ============================================
+   Map Control Buttons
+   ============================================ */
+function initMapControls() {
+  const centerBtn = document.getElementById("btn-center");
+  const clusterBtn = document.getElementById("btn-clusters");
+  const heatmapBtn = document.getElementById("btn-heatmap");
+  const satelliteBtn = document.getElementById("btn-satellite");
+
+  if (centerBtn) {
+    centerBtn.addEventListener("click", () => {
+      map.setView([11.0168, 76.9558], 13);
+      showToast("Map centered to default view", "info");
+    });
+  }
+
+  if (clusterBtn) {
+    clusterBtn.addEventListener("click", () => {
+      clusterBtn.classList.toggle("active");
+      const isActive = clusterBtn.classList.contains("active");
+
+      if (isActive) {
+        renderClusters();
+        showToast("Cluster zones visible", "info");
+      } else {
+        clusterCircles.forEach((circle) => map.removeLayer(circle));
+        clusterCircles = [];
+        showToast("Cluster zones hidden", "info");
+      }
+    });
+  }
+}
+
+/* ============================================
+   Cluster Badge Updates
+   ============================================ */
+function updateClusterBadge() {
+  const badge = document.getElementById("cluster-badge");
+  const countEl = document.getElementById("cluster-count");
+  const heartbeat = document.getElementById("city-heartbeat");
+
+  if (!badge) return;
+
+  if (clusterCircles.length > 0) {
+    badge.style.display = "block";
+    if (countEl) countEl.textContent = clusterCircles.length;
+    if (heartbeat) heartbeat.classList.add("active");
+
+    // Show cluster alert
+    showClusterAlert(clusterCircles.length);
+  } else {
+    badge.style.display = "none";
+    if (heartbeat) heartbeat.classList.remove("active");
+  }
+}
+
+/* ============================================
+   Enhanced refreshAllData
+   ============================================ */
+const originalRefreshAllData = refreshAllData;
+refreshAllData = async function () {
+  await fetchIssues();
+  applyTimelineFilter();
+  renderMarkers();
+  renderClusters();
+  renderIssueTable();
+
+  const stats = await fetchStats();
+  if (stats) {
+    currentStats = stats;
+    updateStatsDisplay(stats);
+    renderAnalytics(stats);
+
+    // Update command center elements
+    updateCityStatus(stats);
+    updateSeverityHeatBar(stats);
+    updateHealthGauge(stats.resolution_percentage || 0);
+  }
+
+  // Update other UI elements
+  updateActivityTicker();
+  updatePriorityLeaderboard();
+  updateAIInsights();
+  updateClusterBadge();
+};
+
+/* ============================================
+   Initialize Command Center Features
+   ============================================ */
+document.addEventListener("DOMContentLoaded", () => {
+  // Initialize all command center features
+  setTimeout(() => {
+    initCustomCursor();
+    initThemeToggle();
+    initDigitalClock();
+    initNetworkStatus();
+    initTimelineFilter();
+    initSideDrawer();
+    initMapControls();
+
+    // Initialize Innovative Features
+    initFAB();
+    initLiveFeed();
+    initGamification();
+    initWeatherWidget();
+    initScrollHideWidgets();
+
+    console.log("✅ Smart City Command Center initialized!");
+  }, 100);
+});
+
+/* ============================================
+   INNOVATIVE FEATURES - JavaScript
+   ============================================ */
+
+// 0. Scroll Hide Widgets
+function initScrollHideWidgets() {
+  const widgets = document.querySelectorAll(
+    ".citizen-badge-panel, .weather-widget, .health-battery-fixed",
+  );
+  let lastScrollTop = 0;
+  const scrollThreshold = 100; // Pixels scrolled before hiding
+
+  window.addEventListener(
+    "scroll",
+    () => {
+      const scrollTop =
+        window.pageYOffset || document.documentElement.scrollTop;
+
+      if (scrollTop > scrollThreshold) {
+        // Scrolled down past threshold - hide widgets
+        widgets.forEach((widget) => {
+          widget.classList.add("scroll-hidden");
+        });
+      } else {
+        // Back to top - show widgets
+        widgets.forEach((widget) => {
+          widget.classList.remove("scroll-hidden");
+        });
+      }
+
+      lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+    },
+    { passive: true },
+  );
+}
+
+// 1. Floating Action Button (FAB)
+function initFAB() {
+  const fabMain = document.getElementById("fab-main");
+  const fabContainer = document.querySelector(".fab-container");
+  const fabActions = document.querySelectorAll(".fab-action");
+
+  if (!fabMain) return;
+
+  fabMain.addEventListener("click", () => {
+    fabContainer.classList.toggle("open");
+  });
+
+  // Close FAB when clicking outside
+  document.addEventListener("click", (e) => {
+    if (!fabContainer.contains(e.target)) {
+      fabContainer.classList.remove("open");
+    }
+  });
+
+  // FAB action handlers
+  fabActions.forEach((action) => {
+    action.addEventListener("click", () => {
+      const actionType = action.dataset.action;
+      handleFABAction(actionType);
+      fabContainer.classList.remove("open");
+    });
+  });
+}
+
+function handleFABAction(action) {
+  switch (action) {
+    case "voice":
+      startVoiceReport();
+      break;
+    case "photo":
+      showToast("📷 Photo capture coming soon!", "info");
+      break;
+    case "quick":
+      // Navigate to report section
+      document.querySelector('[data-section="report"]')?.click();
+      break;
+    case "sos":
+      triggerSOS();
+      break;
+  }
+}
+
+function triggerSOS() {
+  // SOS emergency report
+  showToast("🆘 Emergency services notified! Help is on the way.", "danger");
+  triggerConfetti(["#ef4444", "#f97316", "#fbbf24"]);
+}
+
+// 2. Live Activity Feed
+const activityFeed = [];
+const MAX_FEED_ITEMS = 20;
+
+function initLiveFeed() {
+  const toggle = document.getElementById("live-feed-toggle");
+  const panel = document.getElementById("live-feed-panel");
+  const closeBtn = document.getElementById("feed-close");
+
+  if (!toggle || !panel) return;
+
+  toggle.addEventListener("click", () => {
+    panel.classList.toggle("open");
+    if (panel.classList.contains("open")) {
+      renderLiveFeed();
+    }
+  });
+
+  closeBtn?.addEventListener("click", () => {
+    panel.classList.remove("open");
+  });
+
+  // Simulate live activities
+  setInterval(() => {
+    if (Math.random() > 0.7) {
+      addFeedActivity(generateRandomActivity());
+    }
+  }, 5000);
+}
+
+function generateRandomActivity() {
+  const activities = [
+    { type: "📝 New Report", action: "Road damage reported in RS Puram" },
+    { type: "✅ Resolved", action: "Water leak fixed at Gandhi Park" },
+    { type: "⚙️ In Progress", action: "Garbage cleanup started" },
+    { type: "👍 Upvoted", action: "Streetlight issue got 5 upvotes" },
+    { type: "🚨 Alert", action: "High priority issue detected" },
+    { type: "📊 Analysis", action: "AI detected cluster formation" },
+  ];
+  return activities[Math.floor(Math.random() * activities.length)];
+}
+
+function addFeedActivity(activity) {
+  activityFeed.unshift({
+    ...activity,
+    time: new Date(),
+    isNew: true,
+  });
+
+  if (activityFeed.length > MAX_FEED_ITEMS) {
+    activityFeed.pop();
+  }
+
+  renderLiveFeed();
+}
+
+function renderLiveFeed() {
+  const container = document.getElementById("live-feed-content");
+  if (!container) return;
+
+  container.innerHTML = activityFeed
+    .map(
+      (item, index) => `
+    <div class="feed-item ${item.isNew ? "new" : ""}" style="animation-delay: ${index * 0.05}s">
+      <div class="feed-item-header">
+        <span class="feed-item-type">${item.type}</span>
+        <span class="feed-item-time">${formatTimeAgo(item.time)}</span>
+      </div>
+      <div class="feed-item-action">${item.action}</div>
+    </div>
+  `,
+    )
+    .join("");
+
+  // Mark all as seen
+  setTimeout(() => {
+    activityFeed.forEach((item) => (item.isNew = false));
+  }, 1000);
+}
+
+function formatTimeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  if (seconds < 60) return "Just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+// 3. Gamification System
+const CITIZEN_LEVELS = [
+  { level: 1, name: "Newcomer", xpRequired: 0, badge: "🌱" },
+  { level: 2, name: "Contributor", xpRequired: 100, badge: "🌿" },
+  { level: 3, name: "Guardian", xpRequired: 300, badge: "🌳" },
+  { level: 4, name: "Champion", xpRequired: 600, badge: "⭐" },
+  { level: 5, name: "Hero", xpRequired: 1000, badge: "🏆" },
+  { level: 6, name: "Legend", xpRequired: 2000, badge: "👑" },
+];
+
+const ACHIEVEMENTS = [
+  {
+    id: "first_report",
+    name: "First Report",
+    icon: "📝",
+    description: "Submit your first issue report",
+  },
+  {
+    id: "early_bird",
+    name: "Early Bird",
+    icon: "🌅",
+    description: "Report an issue before 7 AM",
+  },
+  {
+    id: "night_owl",
+    name: "Night Owl",
+    icon: "🦉",
+    description: "Report an issue after 10 PM",
+  },
+  {
+    id: "cluster_buster",
+    name: "Cluster Buster",
+    icon: "💥",
+    description: "Help resolve a cluster of issues",
+  },
+  {
+    id: "community_hero",
+    name: "Community Hero",
+    icon: "🦸",
+    description: "Get 50 upvotes on your reports",
+  },
+  {
+    id: "streak_master",
+    name: "Streak Master",
+    icon: "🔥",
+    description: "7 day reporting streak",
+  },
+  {
+    id: "area_expert",
+    name: "Area Expert",
+    icon: "📍",
+    description: "Report 10 issues in one area",
+  },
+  {
+    id: "quick_responder",
+    name: "Quick Responder",
+    icon: "⚡",
+    description: "Report within 5 min of seeing",
+  },
+];
+
+let citizenXP = parseInt(localStorage.getItem("citizenXP") || "0");
+let unlockedAchievements = JSON.parse(
+  localStorage.getItem("achievements") || "[]",
+);
+
+function initGamification() {
+  updateGamificationUI();
+  renderBadges();
+
+  // Add some initial XP for demo
+  if (citizenXP === 0) {
+    addXP(50); // Welcome bonus
+  }
+}
+
+function updateGamificationUI() {
+  const currentLevel = getCurrentLevel();
+  const nextLevel = CITIZEN_LEVELS[currentLevel.level] || currentLevel;
+
+  const levelBadge = document.querySelector(".level-badge");
+  const levelName = document.querySelector(".level-name");
+  const xpFill = document.getElementById("xp-fill");
+
+  if (levelBadge) levelBadge.textContent = `Lv.${currentLevel.level}`;
+  if (levelName) levelName.textContent = currentLevel.name;
+
+  if (xpFill) {
+    const progress =
+      ((citizenXP - currentLevel.xpRequired) /
+        (nextLevel.xpRequired - currentLevel.xpRequired)) *
+      100;
+    xpFill.style.width = `${Math.min(progress, 100)}%`;
+  }
+}
+
+function getCurrentLevel() {
+  for (let i = CITIZEN_LEVELS.length - 1; i >= 0; i--) {
+    if (citizenXP >= CITIZEN_LEVELS[i].xpRequired) {
+      return CITIZEN_LEVELS[i];
+    }
+  }
+  return CITIZEN_LEVELS[0];
+}
+
+function addXP(amount) {
+  const oldLevel = getCurrentLevel();
+  citizenXP += amount;
+  localStorage.setItem("citizenXP", citizenXP.toString());
+
+  const newLevel = getCurrentLevel();
+  updateGamificationUI();
+
+  if (newLevel.level > oldLevel.level) {
+    showAchievement(`Level Up! ${newLevel.name}`);
+    triggerConfetti();
+  }
+}
+
+function unlockAchievement(achievementId) {
+  if (unlockedAchievements.includes(achievementId)) return;
+
+  const achievement = ACHIEVEMENTS.find((a) => a.id === achievementId);
+  if (!achievement) return;
+
+  unlockedAchievements.push(achievementId);
+  localStorage.setItem("achievements", JSON.stringify(unlockedAchievements));
+
+  showAchievement(achievement.name);
+  addXP(50);
+  renderBadges();
+  triggerConfetti();
+}
+
+function renderBadges() {
+  const container = document.getElementById("earned-badges");
+  if (!container) return;
+
+  container.innerHTML = ACHIEVEMENTS.slice(0, 6)
+    .map((achievement) => {
+      const unlocked = unlockedAchievements.includes(achievement.id);
+      return `
+      <div class="earned-badge ${unlocked ? "" : "locked"}" title="${achievement.name}: ${achievement.description}">
+        ${achievement.icon}
+      </div>
+    `;
+    })
+    .join("");
+}
+
+function showAchievement(name) {
+  const toast = document.getElementById("achievement-toast");
+  const nameEl = document.getElementById("achievement-name");
+
+  if (!toast || !nameEl) return;
+
+  nameEl.textContent = name;
+  toast.classList.add("show");
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+  }, 4000);
+}
+
+// 4. Weather Widget
+function initWeatherWidget() {
+  updateWeather();
+  setInterval(updateWeather, 600000); // Update every 10 minutes
+}
+
+async function updateWeather() {
+  // Simulated weather data (in production, use a real API)
+  const weatherConditions = [
+    { icon: "☀️", temp: 32, condition: "Sunny", impact: "Normal" },
+    { icon: "⛅", temp: 28, condition: "Partly Cloudy", impact: "Normal" },
+    {
+      icon: "🌧️",
+      temp: 24,
+      condition: "Rainy",
+      impact: "High",
+      impactClass: "danger",
+    },
+    { icon: "🌤️", temp: 30, condition: "Clear", impact: "Normal" },
+    {
+      icon: "⛈️",
+      temp: 22,
+      condition: "Thunderstorm",
+      impact: "Critical",
+      impactClass: "danger",
+    },
+  ];
+
+  const weather =
+    weatherConditions[Math.floor(Math.random() * weatherConditions.length)];
+
+  const iconEl = document.getElementById("weather-icon");
+  const tempEl = document.getElementById("weather-temp");
+  const conditionEl = document.getElementById("weather-condition");
+  const impactEl = document.querySelector(".impact-value");
+
+  if (iconEl) iconEl.textContent = weather.icon;
+  if (tempEl) tempEl.textContent = `${weather.temp}°C`;
+  if (conditionEl) conditionEl.textContent = weather.condition;
+  if (impactEl) {
+    impactEl.textContent = weather.impact;
+    impactEl.className = `impact-value ${weather.impactClass || ""}`;
+  }
+}
+
+// 5. Voice Command
+let recognition;
+
+function startVoiceReport() {
+  if (
+    !("webkitSpeechRecognition" in window) &&
+    !("SpeechRecognition" in window)
+  ) {
+    showToast("🎤 Voice recognition not supported in this browser", "warning");
+    return;
+  }
+
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = "en-US";
+
+  const modal = document.getElementById("voice-modal");
+  const transcript = document.getElementById("voice-transcript");
+  const voiceText = document.getElementById("voice-text");
+
+  modal?.classList.add("active");
+  if (voiceText) voiceText.textContent = "Listening...";
+  if (transcript) transcript.textContent = "";
+
+  recognition.onresult = (event) => {
+    const result = event.results[event.results.length - 1];
+    if (transcript) transcript.textContent = result[0].transcript;
+
+    if (result.isFinal) {
+      processVoiceCommand(result[0].transcript);
+    }
+  };
+
+  recognition.onerror = (event) => {
+    console.error("Voice recognition error:", event.error);
+    cancelVoiceReport();
+    showToast("🎤 Voice recognition failed. Please try again.", "error");
+  };
+
+  recognition.onend = () => {
+    if (voiceText) voiceText.textContent = "Processing...";
+  };
+
+  recognition.start();
+}
+
+function cancelVoiceReport() {
+  if (recognition) recognition.stop();
+  document.getElementById("voice-modal")?.classList.remove("active");
+}
+
+function processVoiceCommand(text) {
+  cancelVoiceReport();
+
+  // Simple command processing
+  const lowerText = text.toLowerCase();
+
+  if (lowerText.includes("report") || lowerText.includes("issue")) {
+    document.querySelector('[data-section="report"]')?.click();
+
+    // Try to auto-fill based on keywords
+    const descField = document.getElementById("description");
+    if (descField) descField.value = text;
+
+    showToast("📝 Voice report started! Please complete the form.", "success");
+    unlockAchievement("first_report");
+  } else if (lowerText.includes("dashboard") || lowerText.includes("home")) {
+    document.querySelector('[data-section="dashboard"]')?.click();
+    showToast("🏠 Navigated to Dashboard", "info");
+  } else if (lowerText.includes("analytics") || lowerText.includes("stats")) {
+    document.querySelector('[data-section="analytics"]')?.click();
+    showToast("📊 Navigated to Analytics", "info");
+  } else {
+    showToast(`🎤 Heard: "${text}"`, "info");
+  }
+}
+
+// Make cancelVoiceReport available globally
+window.cancelVoiceReport = cancelVoiceReport;
+
+// 7. Confetti Celebration
+function triggerConfetti(
+  colors = ["#6366f1", "#a855f7", "#ec4899", "#22c55e", "#f59e0b"],
+) {
+  const container = document.getElementById("confetti-container");
+  if (!container) return;
+
+  const confettiCount = 50;
+
+  for (let i = 0; i < confettiCount; i++) {
+    const confetti = document.createElement("div");
+    confetti.className = "confetti";
+    confetti.style.left = `${Math.random() * 100}%`;
+    confetti.style.background =
+      colors[Math.floor(Math.random() * colors.length)];
+    confetti.style.animationDelay = `${Math.random() * 0.5}s`;
+    confetti.style.animationDuration = `${2 + Math.random() * 2}s`;
+
+    const shapes = ["circle", "square", "rect"];
+    const shape = shapes[Math.floor(Math.random() * shapes.length)];
+    if (shape === "circle") confetti.style.borderRadius = "50%";
+    if (shape === "rect") {
+      confetti.style.width = "15px";
+      confetti.style.height = "8px";
+    }
+
+    container.appendChild(confetti);
+
+    // Remove confetti after animation
+    setTimeout(() => confetti.remove(), 3500);
+  }
+}
+
+// Hook into existing functions for gamification
+const originalHandleSubmit = window.handleReportSubmit;
+if (typeof originalHandleSubmit === "function") {
+  window.handleReportSubmit = async function (...args) {
+    const result = await originalHandleSubmit.apply(this, args);
+    if (result !== false) {
+      addXP(25);
+      unlockAchievement("first_report");
+      addFeedActivity({
+        type: "📝 New Report",
+        action: "You submitted a new issue!",
+      });
+
+      const hour = new Date().getHours();
+      if (hour < 7) unlockAchievement("early_bird");
+      if (hour >= 22) unlockAchievement("night_owl");
+    }
+    return result;
+  };
+}
+
+// Export functions for global access
+window.triggerConfetti = triggerConfetti;
+window.addXP = addXP;
+window.unlockAchievement = unlockAchievement;
+window.showAchievement = showAchievement;

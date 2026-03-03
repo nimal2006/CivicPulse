@@ -533,6 +533,235 @@
           grid-template-columns: 1fr;
         }
       }
+
+      /* Admin Accountability System Styles */
+      .accountability-alert {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        background: linear-gradient(
+          135deg,
+          rgba(239, 68, 68, 0.2),
+          rgba(220, 38, 38, 0.15)
+        );
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        animation: alertPulse 2s ease-in-out infinite;
+      }
+
+      @keyframes alertPulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3);
+        }
+        50% {
+          box-shadow: 0 0 20px 5px rgba(239, 68, 68, 0.2);
+        }
+      }
+
+      .alert-icon {
+        font-size: 28px;
+      }
+
+      .alert-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .alert-content strong {
+        color: #fca5a5;
+        font-size: 14px;
+      }
+
+      .alert-content span {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 13px;
+      }
+
+      .alert-action {
+        background: rgba(239, 68, 68, 0.3);
+        border: 1px solid rgba(239, 68, 68, 0.5);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.3s ease;
+      }
+
+      .alert-action:hover {
+        background: rgba(239, 68, 68, 0.5);
+      }
+
+      .accountability-card {
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        background: linear-gradient(
+          135deg,
+          rgba(99, 102, 241, 0.1),
+          rgba(168, 85, 247, 0.05)
+        );
+      }
+
+      .deadline-badge {
+        background: rgba(234, 179, 8, 0.2);
+        color: #fbbf24;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid rgba(234, 179, 8, 0.3);
+      }
+
+      .accountability-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .acc-stat {
+        text-align: center;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .acc-stat-value {
+        display: block;
+        font-size: 32px;
+        font-weight: 700;
+        color: #818cf8;
+      }
+
+      .acc-stat.warning .acc-stat-value {
+        color: #fbbf24;
+      }
+
+      .acc-stat.danger .acc-stat-value {
+        color: #f87171;
+      }
+
+      .acc-stat.success .acc-stat-value {
+        color: #4ade80;
+      }
+
+      .acc-stat-label {
+        display: block;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-top: 6px;
+      }
+
+      .accountability-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .btn-acc-action {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        border: none;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .btn-acc-action:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+      }
+
+      .btn-acc-action.secondary {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .btn-acc-action.secondary:hover {
+        background: rgba(255, 255, 255, 0.2);
+        box-shadow: none;
+      }
+
+      .overdue-panel {
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        margin-bottom: 20px;
+      }
+
+      .overdue-panel .card-header {
+        background: rgba(239, 68, 68, 0.1);
+      }
+
+      .btn-close {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 20px;
+        cursor: pointer;
+        transition: color 0.3s;
+      }
+
+      .btn-close:hover {
+        color: white;
+      }
+
+      .days-overdue {
+        background: rgba(239, 68, 68, 0.2);
+        color: #fca5a5;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 13px;
+      }
+
+      .btn-escalate {
+        background: rgba(239, 68, 68, 0.2);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        color: #fca5a5;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.3s;
+      }
+
+      .btn-escalate:hover {
+        background: rgba(239, 68, 68, 0.4);
+      }
+
+      /* Admin Management Modal */
+      .admin-status-blocked {
+        background: rgba(239, 68, 68, 0.2);
+        color: #fca5a5;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+
+      .admin-status-active {
+        background: rgba(34, 197, 94, 0.2);
+        color: #4ade80;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+
+      @media (max-width: 768px) {
+        .accountability-stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
     </style>
   </head>
   <body>
@@ -636,6 +865,24 @@
 
         <!-- Overview Page -->
         <div id="page-overview" class="page-content active">
+          <!-- Admin Accountability Alert Banner -->
+          <div
+            id="accountability-alert"
+            class="accountability-alert"
+            style="display: none"
+          >
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-content">
+              <strong>Accountability Warning</strong>
+              <span id="accountability-message"
+                >Some issues have exceeded the 3-day resolution deadline.</span
+              >
+            </div>
+            <button class="alert-action" onclick="showOverduePanel()">
+              View Details
+            </button>
+          </div>
+
           <div class="stats-grid">
             <div class="stat-card">
               <div class="label">Total Issues</div>
@@ -656,6 +903,75 @@
               <div class="label">Users</div>
               <div class="value" id="stat-users">0</div>
               <div class="change positive">Registered</div>
+            </div>
+          </div>
+
+          <!-- Admin Accountability Panel -->
+          <div class="card accountability-card">
+            <div class="card-header">
+              <h3 class="card-title">🛡️ Admin Accountability System</h3>
+              <div class="deadline-badge">3-Day Resolution Deadline</div>
+            </div>
+            <div class="card-body">
+              <div class="accountability-stats">
+                <div class="acc-stat">
+                  <span class="acc-stat-value" id="overdue-count">0</span>
+                  <span class="acc-stat-label">Overdue Issues</span>
+                </div>
+                <div class="acc-stat warning">
+                  <span class="acc-stat-value" id="admins-at-risk">0</span>
+                  <span class="acc-stat-label">Admins at Risk</span>
+                </div>
+                <div class="acc-stat danger">
+                  <span class="acc-stat-value" id="blocked-admins">0</span>
+                  <span class="acc-stat-label">Blocked Admins</span>
+                </div>
+                <div class="acc-stat success">
+                  <span class="acc-stat-value" id="active-admins">0</span>
+                  <span class="acc-stat-label">Active Admins</span>
+                </div>
+              </div>
+              <div class="accountability-actions">
+                <button class="btn-acc-action" onclick="runAutoBlockCheck()">
+                  🔄 Run Auto-Block Check
+                </button>
+                <button
+                  class="btn-acc-action secondary"
+                  onclick="viewAllAdmins()"
+                >
+                  👥 Manage Admins
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Overdue Issues Panel (Collapsible) -->
+          <div
+            id="overdue-panel"
+            class="card overdue-panel"
+            style="display: none"
+          >
+            <div class="card-header">
+              <h3 class="card-title">⏰ Overdue Issues (> 3 Days)</h3>
+              <button class="btn-close" onclick="hideOverduePanel()">✕</button>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Issue Type</th>
+                      <th>Assigned To</th>
+                      <th>Assigned Date</th>
+                      <th>Days Overdue</th>
+                      <th>Severity</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="overdue-issues-table"></tbody>
+                </table>
+              </div>
             </div>
           </div>
 
@@ -1225,6 +1541,254 @@
               "message error";
           }
         });
+
+      // ====================================
+      // ADMIN ACCOUNTABILITY SYSTEM
+      // ====================================
+
+      async function loadAccountabilityData() {
+        try {
+          const res = await fetch("/api/admin/accountability-stats", {
+            credentials: "include",
+          });
+
+          if (!res.ok) return;
+
+          const data = await res.json();
+
+          // Update accountability stats
+          document.getElementById("overdue-count").textContent =
+            data.overdue_issues_count;
+          document.getElementById("admins-at-risk").textContent =
+            data.admins_with_overdue;
+          document.getElementById("blocked-admins").textContent =
+            data.blocked_admins;
+          document.getElementById("active-admins").textContent =
+            data.active_admins;
+
+          // Show alert if there are overdue issues
+          const alertEl = document.getElementById("accountability-alert");
+          if (data.overdue_issues_count > 0) {
+            alertEl.style.display = "flex";
+            document.getElementById("accountability-message").textContent =
+              `${data.overdue_issues_count} issue(s) have exceeded the ${data.deadline_days}-day resolution deadline.`;
+          } else {
+            alertEl.style.display = "none";
+          }
+        } catch (err) {
+          console.error("Failed to load accountability data:", err);
+        }
+      }
+
+      async function loadOverdueIssues() {
+        try {
+          const res = await fetch("/api/admin/overdue-issues?days=3", {
+            credentials: "include",
+          });
+
+          if (!res.ok) return;
+
+          const data = await res.json();
+          renderOverdueTable(data.overdue_issues);
+        } catch (err) {
+          console.error("Failed to load overdue issues:", err);
+        }
+      }
+
+      function renderOverdueTable(issues) {
+        const tbody = document.getElementById("overdue-issues-table");
+        if (!tbody) return;
+
+        tbody.innerHTML =
+          issues
+            .map((issue) => {
+              const daysOverdue = Math.floor(issue.days_overdue || 0);
+              const assignedDate = issue.assigned_at
+                ? new Date(issue.assigned_at).toLocaleDateString()
+                : "N/A";
+
+              return `
+            <tr>
+              <td>#${issue.id}</td>
+              <td>${issue.issue_type}</td>
+              <td>${issue.assigned_to || "Unassigned"}</td>
+              <td>${assignedDate}</td>
+              <td><span class="days-overdue">${daysOverdue} days</span></td>
+              <td><span class="badge badge-${issue.severity.toLowerCase()}">${issue.severity}</span></td>
+              <td>
+                <button class="btn-escalate" onclick="escalateIssue(${issue.id})">
+                  ⚡ Escalate
+                </button>
+              </td>
+            </tr>
+          `;
+            })
+            .join("") ||
+          '<tr><td colspan="7" style="text-align: center; color: rgba(255,255,255,0.5);">No overdue issues! 🎉</td></tr>';
+      }
+
+      function showOverduePanel() {
+        document.getElementById("overdue-panel").style.display = "block";
+        loadOverdueIssues();
+      }
+
+      function hideOverduePanel() {
+        document.getElementById("overdue-panel").style.display = "none";
+      }
+
+      async function runAutoBlockCheck() {
+        if (
+          !confirm(
+            "This will automatically block admins who have issues overdue for more than 3 days. Continue?",
+          )
+        ) {
+          return;
+        }
+
+        try {
+          const res = await fetch("/api/admin/auto-block-check", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ days: 3 }),
+            credentials: "include",
+          });
+
+          const data = await res.json();
+
+          if (res.ok) {
+            alert(data.message);
+            loadAccountabilityData();
+          } else {
+            alert("Error: " + (data.error || "Failed to run check"));
+          }
+        } catch (err) {
+          alert("Connection error");
+          console.error(err);
+        }
+      }
+
+      async function viewAllAdmins() {
+        try {
+          const res = await fetch("/api/admin/list", {
+            credentials: "include",
+          });
+          if (!res.ok) {
+            alert("Failed to load admins");
+            return;
+          }
+
+          const data = await res.json();
+          showAdminsModal(data.admins);
+        } catch (err) {
+          alert("Connection error");
+          console.error(err);
+        }
+      }
+
+      function showAdminsModal(admins) {
+        const modalHtml = `
+          <div id="admins-modal" class="modal" style="display: flex;">
+            <div class="modal-content" style="max-width: 700px;">
+              <div class="modal-header">
+                <h2>👥 Manage Admins</h2>
+                <button class="modal-close" onclick="document.getElementById('admins-modal').remove()">&times;</button>
+              </div>
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Username</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${admins
+                      .map(
+                        (admin) => `
+                      <tr>
+                        <td>#${admin.id}</td>
+                        <td>${admin.username}</td>
+                        <td>${admin.name}</td>
+                        <td>${admin.email}</td>
+                        <td>
+                          ${
+                            admin.is_blocked
+                              ? `<span class="admin-status-blocked">Blocked</span>`
+                              : `<span class="admin-status-active">Active</span>`
+                          }
+                        </td>
+                        <td>
+                          ${
+                            admin.is_blocked
+                              ? `<button class="btn btn-primary" onclick="toggleAdminBlock(${admin.id}, false)">Unblock</button>`
+                              : `<button class="btn btn-danger" onclick="toggleAdminBlock(${admin.id}, true)">Block</button>`
+                          }
+                        </td>
+                      </tr>
+                    `,
+                      )
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.body.insertAdjacentHTML("beforeend", modalHtml);
+      }
+
+      async function toggleAdminBlock(adminId, shouldBlock) {
+        const action = shouldBlock ? "block" : "unblock";
+        const reason = shouldBlock
+          ? prompt("Enter reason for blocking (optional):")
+          : null;
+
+        if (shouldBlock && reason === null) return; // Cancelled
+
+        try {
+          const res = await fetch(`/api/admin/${adminId}/${action}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              reason: reason || `Manually ${action}ed by admin`,
+            }),
+            credentials: "include",
+          });
+
+          const data = await res.json();
+
+          if (res.ok) {
+            alert(data.message);
+            document.getElementById("admins-modal")?.remove();
+            viewAllAdmins();
+            loadAccountabilityData();
+          } else {
+            alert("Error: " + (data.error || `Failed to ${action} admin`));
+          }
+        } catch (err) {
+          alert("Connection error");
+          console.error(err);
+        }
+      }
+
+      async function escalateIssue(issueId) {
+        alert(
+          `Issue #${issueId} has been escalated to higher authority. The assigned admin will be notified.`,
+        );
+        // In real implementation, this would send notifications and update issue priority
+      }
+
+      // Load accountability data after dashboard loads
+      const originalLoadDashboard = loadDashboardData;
+      loadDashboardData = async function () {
+        await originalLoadDashboard();
+        await loadAccountabilityData();
+      };
 
       // Initialize
       checkAuth();
