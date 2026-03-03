@@ -1638,6 +1638,17 @@ function initImageUpload() {
       clearImageUpload();
     });
   }
+
+  // Auto-analyze when issue type changes to Garbage and image is already uploaded
+  const issueTypeSelect = document.getElementById("issue-type");
+  if (issueTypeSelect) {
+    issueTypeSelect.addEventListener("change", (e) => {
+      if (e.target.value === "Garbage" && uploadedImageData) {
+        // Image already uploaded, auto-analyze for severity
+        setTimeout(() => analyzeImageForSeverity(), 300);
+      }
+    });
+  }
 }
 
 function handleImageFile(file) {
@@ -1648,7 +1659,7 @@ function handleImageFile(file) {
   }
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     uploadedImageData = e.target.result;
 
     const uploadBox = document.getElementById("image-upload-box");
@@ -1660,6 +1671,22 @@ function handleImageFile(file) {
       uploadBox.classList.add("hidden");
       previewContainer.classList.remove("hidden");
       showToast("Image uploaded successfully!", "success");
+
+      // Auto-analyze image for garbage issues
+      const issueType = document.getElementById("issue-type").value;
+      if (issueType === "Garbage") {
+        showToast("🔍 Automatically analyzing garbage image...", "info");
+        // Small delay to ensure file input is updated
+        setTimeout(() => {
+          analyzeImageForSeverity();
+        }, 300);
+      } else {
+        // Show prompt for non-garbage issues
+        showToast(
+          "💡 Click 'Auto' button to analyze severity from image",
+          "info",
+        );
+      }
     }
   };
   reader.readAsDataURL(file);
