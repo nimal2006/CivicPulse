@@ -539,12 +539,16 @@ def login_page():
 @app.route("/api/issues", methods=["GET"])
 def get_issues():
     """GET /api/issues - Retrieve all issues with priority scores."""
-    issues = db.get_all_issues()
-    
-    for issue in issues:
-        issue["priority_score"] = priority_score(issue)
-    
-    return jsonify(issues), 200
+    try:
+        issues = db.get_all_issues()
+        
+        for issue in issues:
+            issue["priority_score"] = priority_score(issue)
+        
+        return jsonify(issues), 200
+    except Exception as e:
+        print(f"Error in get_issues: {e}")
+        return jsonify([]), 200
 
 @app.route("/api/issues", methods=["POST"])
 def create_issue():
@@ -643,33 +647,45 @@ def upvote_issue_route(issue_id):
 @app.route("/api/stats", methods=["GET"])
 def get_stats():
     """GET /api/stats - Retrieve statistics about all issues."""
-    total_issues = db.count_issues()
-    reported_count = db.count_issues_by_status("Reported")
-    in_progress_count = db.count_issues_by_status("In Progress")
-    resolved_count = db.count_issues_by_status("Resolved")
-    
-    if total_issues > 0:
-        resolution_percentage = round((resolved_count / total_issues) * 100, 2)
-    else:
-        resolution_percentage = 0.0
-    
-    by_type = db.get_issues_by_type_count()
-    
-    by_severity = {
-        "High": db.count_issues_by_severity("High"),
-        "Medium": db.count_issues_by_severity("Medium"),
-        "Low": db.count_issues_by_severity("Low")
-    }
-    
-    return jsonify({
-        "total_issues": total_issues,
-        "reported_count": reported_count,
-        "in_progress_count": in_progress_count,
-        "resolved_count": resolved_count,
-        "resolution_percentage": resolution_percentage,
-        "by_type": by_type,
-        "by_severity": by_severity
-    }), 200
+    try:
+        total_issues = db.count_issues()
+        reported_count = db.count_issues_by_status("Reported")
+        in_progress_count = db.count_issues_by_status("In Progress")
+        resolved_count = db.count_issues_by_status("Resolved")
+        
+        if total_issues > 0:
+            resolution_percentage = round((resolved_count / total_issues) * 100, 2)
+        else:
+            resolution_percentage = 0.0
+        
+        by_type = db.get_issues_by_type_count()
+        
+        by_severity = {
+            "High": db.count_issues_by_severity("High"),
+            "Medium": db.count_issues_by_severity("Medium"),
+            "Low": db.count_issues_by_severity("Low")
+        }
+        
+        return jsonify({
+            "total_issues": total_issues,
+            "reported_count": reported_count,
+            "in_progress_count": in_progress_count,
+            "resolved_count": resolved_count,
+            "resolution_percentage": resolution_percentage,
+            "by_type": by_type,
+            "by_severity": by_severity
+        }), 200
+    except Exception as e:
+        print(f"Error in get_stats: {e}")
+        return jsonify({
+            "total_issues": 0,
+            "reported_count": 0,
+            "in_progress_count": 0,
+            "resolved_count": 0,
+            "resolution_percentage": 0,
+            "by_type": {},
+            "by_severity": {"High": 0, "Medium": 0, "Low": 0}
+        }), 200
 
 @app.route("/api/issues/export", methods=["GET"])
 def export_issues():
@@ -796,17 +812,28 @@ def get_accountability_stats():
 
 
 # ============================================================================
+# DATABASE INITIALIZATION (runs on import for gunicorn)
+# ============================================================================
+
+# Initialize database when app is imported (works with gunicorn)
+try:
+    print(f"Initializing database at: {db.DATABASE_PATH}")
+    db.init_db()
+    db.add_seed_data()
+    print("CivicPulse database initialized successfully!")
+except Exception as e:
+    print(f"Database initialization error: {e}")
+
+
+# ============================================================================
 # APPLICATION ENTRY POINT
 # ============================================================================
 
 if __name__ == "__main__":
-    # Initialize database and add seed data
-    db.init_db()
-    db.add_seed_data()
-    
     print("CivicPulse API started with SQLite database!")
     print(f"Database: {db.DATABASE_PATH}")
     print(f"Loaded {db.count_issues()} issues")
     
     # Run the Flask development server
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=True, host="0.0.0.0", port=port)

@@ -8,7 +8,11 @@ import hashlib
 from datetime import datetime, timedelta
 import os
 
-DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'civicpulse.db')
+# Use /tmp on cloud platforms (ephemeral but writable), local path for development
+if os.environ.get('RENDER'):
+    DATABASE_PATH = '/tmp/civicpulse.db'
+else:
+    DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'civicpulse.db')
 
 def get_db():
     """Get database connection with row factory"""

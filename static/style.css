@@ -3302,7 +3302,8 @@ body {
   box-shadow: 0 10px 30px var(--glass-shadow);
 }
 
-.user-dropdown.show {
+.user-dropdown.show,
+.user-dropdown.active {
   display: block;
 }
 
