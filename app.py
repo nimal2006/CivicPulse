@@ -17,8 +17,26 @@ from datetime import datetime, timedelta
 from functools import wraps
 import hashlib
 import secrets
+import os
+
+# Twilio WhatsApp API
+from twilio.rest import Client
 
 app = Flask(__name__)
+
+# ============================================================================
+# TWILIO WHATSAPP CONFIGURATION
+# ============================================================================
+# Set these environment variables or replace with your credentials
+TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', 'your_account_sid')
+TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', 'your_auth_token')
+TWILIO_WHATSAPP_NUMBER = os.environ.get('TWILIO_WHATSAPP_NUMBER', 'whatsapp:+14155238886')  # Twilio sandbox number
+
+# Initialize Twilio client (will be None if credentials not set)
+try:
+    twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) if TWILIO_ACCOUNT_SID != 'your_account_sid' else None
+except Exception:
+    twilio_client = None
 app.secret_key = secrets.token_hex(32)  # Secret key for sessions
 
 # Enable CORS for all routes to allow cross-origin requests from frontend
@@ -91,6 +109,81 @@ def get_current_user():
         username = session.get('username')
         return {"type": "admin", "user": admins.get(username)}
     return None
+
+
+# ============================================================================
+# WHATSAPP NOTIFICATION FUNCTION
+# ============================================================================
+
+def send_whatsapp_notification(phone_number, message):
+    """
+    Send a WhatsApp notification to the user.
+    
+    Args:
+        phone_number (str): User's phone number (with country code, e.g., +919876543210)
+        message (str): The message to send
+    
+    Returns:
+        bool: True if sent successfully, False otherwise
+    """
+    if not twilio_client:
+        print(f"[WhatsApp] Twilio not configured. Would send to {phone_number}: {message}")
+        return False
+    
+    try:
+        # Format the phone number for WhatsApp
+        whatsapp_number = f"whatsapp:{phone_number}" if not phone_number.startswith('whatsapp:') else phone_number
+        
+        # Send the message
+        twilio_client.messages.create(
+            body=message,
+            from_=TWILIO_WHATSAPP_NUMBER,
+            to=whatsapp_number
+        )
+        print(f"[WhatsApp] Notification sent to {phone_number}")
+        return True
+    except Exception as e:
+        print(f"[WhatsApp] Failed to send notification: {e}")
+        return False
+
+
+def notify_issue_resolved(issue):
+    """
+    Send WhatsApp notification when an issue is resolved.
+    
+    Args:
+        issue (dict): The issue that was resolved
+    """
+    # Get the user who reported the issue
+    username = issue.get("reported_by", "anonymous")
+    if username == "anonymous" or username not in users:
+        print(f"[WhatsApp] Cannot notify - user not found: {username}")
+        return
+    
+    user = users[username]
+    phone = user.get("phone")
+    
+    if not phone:
+        print(f"[WhatsApp] Cannot notify - no phone number for user: {username}")
+        return
+    
+    # Create the notification message
+    message = f"""🎉 *CivicPulse - Issue Resolved!*
+
+Hello {user.get('name', 'Citizen')}!
+
+Great news! Your reported issue has been resolved.
+
+📋 *Issue Details:*
+• Type: {issue.get('issue_type')}
+• Description: {issue.get('description', '')[:100]}...
+• Status: ✅ Resolved
+
+Thank you for helping make our city better!
+
+- CivicPulse Team"""
+    
+    send_whatsapp_notification(phone, message)
 
 
 # ============================================================================
@@ -638,8 +731,16 @@ def update_issue_status(issue_id):
     if not issue:
         return jsonify({"error": f"Issue with ID {issue_id} not found"}), 404
     
+    # Store old status for comparison
+    old_status = issue["status"]
+    new_status = data["status"]
+    
     # Update only the status field
-    issue["status"] = data["status"]
+    issue["status"] = new_status
+    
+    # Send WhatsApp notification if status changed to Resolved
+    if old_status != "Resolved" and new_status == "Resolved":
+        notify_issue_resolved(issue)
     
     # Return the updated issue
     return jsonify(issue), 200
