@@ -2749,7 +2749,11 @@ select option {
 }
 
 .btn-auto-severity {
-  background: linear-gradient(135deg, rgba(147, 51, 234, 0.3), rgba(124, 58, 237, 0.2));
+  background: linear-gradient(
+    135deg,
+    rgba(147, 51, 234, 0.3),
+    rgba(124, 58, 237, 0.2)
+  );
   color: #a78bfa;
   border: 1px solid rgba(147, 51, 234, 0.5);
   padding: 12px 16px;
@@ -2764,7 +2768,11 @@ select option {
 }
 
 .btn-auto-severity:hover {
-  background: linear-gradient(135deg, rgba(147, 51, 234, 0.5), rgba(124, 58, 237, 0.4));
+  background: linear-gradient(
+    135deg,
+    rgba(147, 51, 234, 0.5),
+    rgba(124, 58, 237, 0.4)
+  );
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(147, 51, 234, 0.3);
 }

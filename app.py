@@ -16,17 +16,32 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from flask_cors import CORS
 from datetime import datetime, timedelta
 from functools import wraps
+from werkzeug.utils import secure_filename
 import hashlib
 import secrets
 import os
 import requests
 import csv
 import io
+import uuid
+
+# OpenCV for image-based severity detection
+import cv2
+import numpy as np
 
 # Import database module
 import database as db
 
 app = Flask(__name__)
+
+# ============================================================================
+# UPLOAD CONFIGURATION
+# ============================================================================
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # ============================================================================
 # FAST2SMS CONFIGURATION
@@ -138,6 +153,104 @@ def detect_severity(issue_type, description):
     matched_keywords.extend(medium_matches)
     
     return severity, confidence, list(set(matched_keywords))
+
+
+# ============================================================================
+# OPENCV IMAGE-BASED SEVERITY DETECTION
+# ============================================================================
+
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def calculate_severity_from_image(image_path):
+    """
+    Calculate garbage severity from image using OpenCV.
+    Analyzes texture complexity (edges) and color variance.
+    
+    Returns: tuple (severity, confidence, analysis_data)
+    """
+    try:
+        # Read image
+        img = cv2.imread(image_path)
+        if img is None:
+            return None, 0, {"error": "Could not read image"}
+        
+        # Get image dimensions
+        height, width = img.shape[:2]
+        total_pixels = height * width
+        
+        # Convert to grayscale for edge detection
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # Edge detection using Canny
+        edges = cv2.Canny(blurred, 50, 150)
+        
+        # Calculate edge ratio (texture complexity)
+        edge_pixels = np.count_nonzero(edges)
+        edge_ratio = edge_pixels / total_pixels
+        
+        # Calculate color variance (indicates variety of garbage)
+        # Convert to HSV for better color analysis
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        
+        # Calculate variance for each channel
+        h_variance = np.var(hsv[:, :, 0])
+        s_variance = np.var(hsv[:, :, 1])
+        v_variance = np.var(hsv[:, :, 2])
+        
+        # Combined color variance score
+        color_variance = (h_variance + s_variance + v_variance) / 3
+        
+        # Calculate overall complexity score
+        complexity_score = (edge_ratio * 100) + (color_variance / 100)
+        
+        # Determine severity based on thresholds
+        analysis_data = {
+            "edge_ratio": round(edge_ratio, 4),
+            "color_variance": round(color_variance, 2),
+            "complexity_score": round(complexity_score, 2),
+            "image_dimensions": f"{width}x{height}"
+        }
+        
+        # Rule-based severity classification
+        if edge_ratio > 0.25 and color_variance > 2000:
+            severity = "High"
+            confidence = min(95, 70 + int(edge_ratio * 50))
+        elif edge_ratio > 0.15 or color_variance > 1500:
+            severity = "Medium"
+            confidence = min(90, 60 + int(edge_ratio * 40))
+        else:
+            severity = "Low"
+            confidence = min(85, 50 + int((0.15 - edge_ratio) * 100))
+        
+        analysis_data["severity"] = severity
+        analysis_data["confidence"] = confidence
+        
+        return severity, confidence, analysis_data
+        
+    except Exception as e:
+        print(f"Error analyzing image: {e}")
+        return None, 0, {"error": str(e)}
+
+
+def save_uploaded_image(file):
+    """
+    Save uploaded image file and return the path.
+    Returns: (filename, filepath) or (None, None) on error
+    """
+    if file and allowed_file(file.filename):
+        # Generate unique filename
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        unique_filename = f"{uuid.uuid4().hex}.{ext}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        file.save(filepath)
+        return unique_filename, filepath
+    return None, None
 
 
 # ============================================================================
@@ -663,6 +776,47 @@ def auto_detect_severity():
     }), 200
 
 
+@app.route("/api/analyze-image", methods=["POST"])
+def analyze_image():
+    """POST /api/analyze-image - Analyze uploaded image for severity detection.
+    Returns severity analysis without creating an issue.
+    """
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+    
+    file = request.files['image']
+    if not file or not file.filename:
+        return jsonify({"error": "No image file selected"}), 400
+    
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Invalid file type. Allowed: png, jpg, jpeg, gif, webp"}), 400
+    
+    # Save temporarily for analysis
+    filename, filepath = save_uploaded_image(file)
+    if not filename:
+        return jsonify({"error": "Failed to save image"}), 500
+    
+    # Analyze image
+    severity, confidence, analysis = calculate_severity_from_image(filepath)
+    
+    if severity is None:
+        # Clean up temp file
+        try:
+            os.remove(filepath)
+        except:
+            pass
+        return jsonify({"error": analysis.get("error", "Failed to analyze image")}), 500
+    
+    # Return analysis results (keep the file for potential submission)
+    return jsonify({
+        "severity": severity,
+        "confidence": confidence,
+        "analysis": analysis,
+        "image_path": f"/static/uploads/{filename}",
+        "message": f"Image analyzed: {severity} severity detected with {confidence}% confidence"
+    }), 200
+
+
 @app.route("/api/issues", methods=["GET"])
 def get_issues():
     """GET /api/issues - Retrieve all issues with priority scores."""
@@ -679,16 +833,63 @@ def get_issues():
 
 @app.route("/api/issues", methods=["POST"])
 def create_issue():
-    """POST /api/issues - Create a new issue report."""
-    data = request.get_json()
+    """POST /api/issues - Create a new issue report.
+    Supports both JSON and multipart/form-data for image uploads.
+    If a garbage image is uploaded, severity is auto-detected using OpenCV.
+    """
+    image_filename = None
+    image_analysis = None
+    auto_severity = None
     
-    if not data:
-        return jsonify({"error": "Request body is required"}), 400
+    # Check if this is a multipart form (file upload)
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        # Handle form data with file upload
+        data = {
+            'issue_type': request.form.get('issue_type'),
+            'description': request.form.get('description'),
+            'severity': request.form.get('severity'),
+            'latitude': request.form.get('latitude'),
+            'longitude': request.form.get('longitude'),
+            'reporter_name': request.form.get('reporter_name', ''),
+            'reporter_contact': request.form.get('reporter_contact', '')
+        }
+        
+        # Handle image upload
+        if 'image' in request.files:
+            file = request.files['image']
+            if file and file.filename:
+                filename, filepath = save_uploaded_image(file)
+                if filename:
+                    image_filename = f"/static/uploads/{filename}"
+                    
+                    # Auto-detect severity for garbage images using OpenCV
+                    if data['issue_type'] == 'Garbage':
+                        auto_severity, confidence, analysis = calculate_severity_from_image(filepath)
+                        if auto_severity:
+                            image_analysis = analysis
+                            # Use auto-detected severity if no manual severity provided
+                            if not data['severity'] or data['severity'] == '':
+                                data['severity'] = auto_severity
+    else:
+        # Handle JSON data (legacy support)
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Request body is required"}), 400
+        
+        # Handle base64 image if provided (legacy)
+        if data.get('image') and data['image'].startswith('data:image'):
+            image_filename = data.get('image')
     
-    required_fields = ["issue_type", "description", "latitude", "longitude", "severity"]
+    # Validate required fields (severity is now optional for garbage - will be auto-detected)
+    required_fields = ["issue_type", "description", "latitude", "longitude"]
     for field in required_fields:
         if field not in data or data[field] is None or data[field] == "":
             return jsonify({"error": f"Missing required field: {field}"}), 400
+    
+    # If severity is still missing, use keyword-based detection
+    if not data.get('severity') or data['severity'] == '':
+        auto_sev, _, _ = detect_severity(data['issue_type'], data['description'])
+        data['severity'] = auto_sev
     
     if data["issue_type"] not in VALID_ISSUE_TYPES:
         return jsonify({"error": f"Invalid issue_type. Must be one of: {VALID_ISSUE_TYPES}"}), 400
@@ -708,13 +909,18 @@ def create_issue():
         latitude=latitude,
         longitude=longitude,
         severity=data["severity"],
-        image=data.get("image"),
+        image=image_filename,
         reported_by=session.get("username", "anonymous"),
         reporter_name=data.get("reporter_name", ""),
         reporter_contact=data.get("reporter_contact", "")
     )
     
     new_issue["priority_score"] = priority_score(new_issue)
+    
+    # Include image analysis in response if available
+    if image_analysis:
+        new_issue["image_analysis"] = image_analysis
+        new_issue["auto_detected_severity"] = True
     return jsonify(new_issue), 201
 
 @app.route("/api/issues/<int:issue_id>", methods=["PATCH"])

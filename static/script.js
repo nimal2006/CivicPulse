@@ -516,6 +516,7 @@ function updateStatsDisplay(stats) {
 /**
  * Auto-detect severity based on issue type and description
  * Calls the /api/auto-severity endpoint
+ * For garbage issues with images, uses OpenCV image analysis
  */
 async function autoDetectSeverity() {
   const issueType = document.getElementById("issue-type").value;
@@ -523,17 +524,31 @@ async function autoDetectSeverity() {
   const severitySelect = document.getElementById("severity");
   const severityHint = document.getElementById("severity-hint");
   const autoBtn = document.getElementById("auto-severity-btn");
-  
-  if (!description || description.trim().length < 10) {
-    showToast("Please enter a description (at least 10 characters) for auto-detection", "warning");
+  const imageInput = document.getElementById("issue-image");
+
+  // Check if there's an uploaded image for garbage issues
+  const hasImage =
+    imageInput && imageInput.files && imageInput.files.length > 0;
+
+  if (issueType === "Garbage" && hasImage) {
+    // Use image analysis for garbage with uploaded image
+    await analyzeImageForSeverity();
     return;
   }
-  
+
+  if (!description || description.trim().length < 10) {
+    showToast(
+      "Please enter a description (at least 10 characters) for auto-detection",
+      "warning",
+    );
+    return;
+  }
+
   // Show loading state
   autoBtn.disabled = true;
   autoBtn.classList.add("loading");
   autoBtn.innerHTML = "🔄 Analyzing...";
-  
+
   try {
     const response = await fetch("/api/auto-severity", {
       method: "POST",
@@ -542,34 +557,38 @@ async function autoDetectSeverity() {
       },
       body: JSON.stringify({
         issue_type: issueType || "Other",
-        description: description
+        description: description,
       }),
     });
-    
+
     if (!response.ok) {
       throw new Error("Failed to detect severity");
     }
-    
+
     const result = await response.json();
-    
+
     // Set the severity value
     severitySelect.value = result.severity;
-    
+
     // Show hint with analysis details
-    const severityEmoji = result.severity === "High" ? "🔴" : result.severity === "Medium" ? "🟡" : "🟢";
+    const severityEmoji =
+      result.severity === "High"
+        ? "🔴"
+        : result.severity === "Medium"
+          ? "🟡"
+          : "🟢";
     let hintText = `${severityEmoji} Auto-detected: <strong>${result.severity}</strong> (${result.confidence}% confidence)`;
-    
+
     if (result.matched_keywords && result.matched_keywords.length > 0) {
       const topKeywords = result.matched_keywords.slice(0, 3).join(", ");
       hintText += `<br><small>Keywords: ${topKeywords}</small>`;
     }
-    
+
     severityHint.innerHTML = hintText;
     severityHint.className = `severity-hint ${result.severity.toLowerCase()}`;
     severityHint.style.display = "block";
-    
+
     showToast(`Severity auto-detected: ${result.severity}`, "success");
-    
   } catch (error) {
     console.error("Auto-severity detection failed:", error);
     showToast("Failed to auto-detect severity", "error");
@@ -582,48 +601,165 @@ async function autoDetectSeverity() {
 }
 
 /**
+ * Analyze uploaded image for garbage severity using OpenCV
+ * Calls the /api/analyze-image endpoint
+ */
+async function analyzeImageForSeverity() {
+  const imageInput = document.getElementById("issue-image");
+  const issueType = document.getElementById("issue-type").value;
+  const severitySelect = document.getElementById("severity");
+  const severityHint = document.getElementById("severity-hint");
+  const autoBtn = document.getElementById("auto-severity-btn");
+
+  if (!imageInput || !imageInput.files || imageInput.files.length === 0) {
+    showToast("Please upload an image first", "warning");
+    return false;
+  }
+
+  if (issueType !== "Garbage") {
+    showToast("Image analysis is optimized for garbage detection", "info");
+  }
+
+  // Show loading state
+  autoBtn.disabled = true;
+  autoBtn.classList.add("loading");
+  autoBtn.innerHTML = "🔍 Analyzing image...";
+
+  try {
+    const formData = new FormData();
+    formData.append("image", imageInput.files[0]);
+
+    const response = await fetch("/api/analyze-image", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to analyze image");
+    }
+
+    const result = await response.json();
+
+    // Set the severity value
+    severitySelect.value = result.severity;
+
+    // Show analysis details
+    const severityEmoji =
+      result.severity === "High"
+        ? "🔴"
+        : result.severity === "Medium"
+          ? "🟡"
+          : "🟢";
+    let hintText = `${severityEmoji} <strong>Image Analysis:</strong> ${result.severity} severity (${result.confidence}% confidence)`;
+
+    if (result.analysis) {
+      hintText += `<br><small>📊 Edge ratio: ${result.analysis.edge_ratio} | Color variance: ${result.analysis.color_variance}</small>`;
+    }
+
+    severityHint.innerHTML = hintText;
+    severityHint.className = `severity-hint ${result.severity.toLowerCase()}`;
+    severityHint.style.display = "block";
+
+    showToast(
+      `🖼️ Image analyzed: ${result.severity} severity detected`,
+      "success",
+    );
+    return true;
+  } catch (error) {
+    console.error("Image analysis failed:", error);
+    showToast(error.message || "Failed to analyze image", "error");
+    return false;
+  } finally {
+    autoBtn.disabled = false;
+    autoBtn.classList.remove("loading");
+    autoBtn.innerHTML = "🤖 Auto";
+  }
+}
+
+/**
  * Handle report form submission
- * POST to /api/issues, then refresh data
+ * POST to /api/issues using FormData for image upload support
+ * Severity is auto-detected using OpenCV for garbage images
  */
 async function handleFormSubmit(event) {
   event.preventDefault();
 
-  // Get form data
+  // Get form element
   const form = event.target;
-  const formData = {
-    issue_type: form.issue_type.value,
-    description: form.description.value,
-    severity: form.severity.value,
-    latitude: parseFloat(form.latitude.value),
-    longitude: parseFloat(form.longitude.value),
-  };
+  const imageInput = document.getElementById("issue-image");
 
-  // Add image data if uploaded
-  if (uploadedImageData) {
-    formData.image = uploadedImageData;
-  }
+  // Get form values
+  const issueType = form.issue_type.value;
+  const description = form.description.value;
+  const severity = form.severity.value;
+  const latitude = parseFloat(form.latitude.value);
+  const longitude = parseFloat(form.longitude.value);
 
-  // Validate required fields
-  if (!formData.issue_type || !formData.description || !formData.severity) {
-    showToast("Please fill in all required fields", "error");
+  // Validate required fields (severity is optional for garbage - will be auto-detected)
+  if (!issueType || !description) {
+    showToast("Please fill in issue type and description", "error");
     return;
   }
 
-  if (isNaN(formData.latitude) || isNaN(formData.longitude)) {
+  if (isNaN(latitude) || isNaN(longitude)) {
     showToast("Please enter valid coordinates or click on the map", "error");
     return;
   }
 
-  console.log("Submitting new issue:", formData);
+  // Check if image is uploaded for garbage issues
+  const hasImage =
+    imageInput && imageInput.files && imageInput.files.length > 0;
+
+  // For garbage issues with image, severity will be auto-detected
+  if (!severity && issueType !== "Garbage") {
+    showToast("Please select a severity level", "error");
+    return;
+  }
+
+  console.log("Submitting new issue with image upload support");
 
   try {
-    const response = await fetch("/api/issues", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(formData),
-    });
+    let response;
+
+    // Use FormData if image is being uploaded
+    if (hasImage) {
+      const formData = new FormData();
+      formData.append("issue_type", issueType);
+      formData.append("description", description);
+      formData.append("severity", severity);
+      formData.append("latitude", latitude);
+      formData.append("longitude", longitude);
+      formData.append("image", imageInput.files[0]);
+
+      // Show loading for image analysis
+      if (issueType === "Garbage") {
+        showToast("🔍 Analyzing garbage image for severity...", "info");
+      }
+
+      response = await fetch("/api/issues", {
+        method: "POST",
+        body: formData,
+        // Don't set Content-Type - browser will set it with boundary
+      });
+    } else {
+      // Use JSON for non-image submissions
+      const jsonData = {
+        issue_type: issueType,
+        description: description,
+        severity: severity,
+        latitude: latitude,
+        longitude: longitude,
+      };
+
+      response = await fetch("/api/issues", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(jsonData),
+      });
+    }
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -633,14 +769,26 @@ async function handleFormSubmit(event) {
     const newIssue = await response.json();
     console.log("Issue created:", newIssue);
 
+    // Show success message with severity info
+    if (newIssue.auto_detected_severity && newIssue.image_analysis) {
+      const analysis = newIssue.image_analysis;
+      showToast(
+        `✅ Issue reported! Severity auto-detected: ${analysis.severity} (${analysis.confidence}% confidence)`,
+        "success",
+      );
+    } else {
+      showToast("Issue reported successfully!", "success");
+    }
+
     // Clear form
     form.reset();
 
     // Clear uploaded image
     clearImageUpload();
 
-    // Show success message
-    showToast("Issue reported successfully!", "success");
+    // Clear severity hint
+    const severityHint = document.getElementById("severity-hint");
+    if (severityHint) severityHint.style.display = "none";
 
     // Switch back to dashboard view
     switchSection("dashboard");
@@ -649,7 +797,7 @@ async function handleFormSubmit(event) {
     await refreshAllData();
 
     // Pan map to new issue location
-    map.setView([formData.latitude, formData.longitude], 15);
+    map.setView([latitude, longitude], 15);
   } catch (error) {
     console.error("Error submitting issue:", error);
     showToast(error.message || "Failed to submit issue", "error");
