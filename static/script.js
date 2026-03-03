@@ -683,11 +683,13 @@ function formatRelativeTime(isoString) {
   const date = new Date(isoString);
   const now = new Date();
   const diffMs = now - date;
+  const diffSecs = Math.floor(diffMs / 1000);
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return "Just now";
+  if (diffSecs < 10) return "Just now";
+  if (diffSecs < 60) return `${diffSecs} sec ago`;
   if (diffMins < 60) return `${diffMins} min ago`;
   if (diffHours < 24) return `${diffHours} hr ago`;
   return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
@@ -2661,7 +2663,8 @@ function renderLiveFeed() {
 
 function formatTimeAgo(date) {
   const seconds = Math.floor((new Date() - date) / 1000);
-  if (seconds < 60) return "Just now";
+  if (seconds < 10) return "Just now";
+  if (seconds < 60) return `${seconds}s ago`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
