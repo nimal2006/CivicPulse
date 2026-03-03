@@ -2679,6 +2679,20 @@ body {
   box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
 }
 
+/* Fix dropdown option text visibility */
+.form-group select option,
+select option {
+  background: #1e1e2f;
+  color: #ffffff;
+  padding: 10px;
+}
+
+[data-theme="light"] .form-group select option,
+[data-theme="light"] select option {
+  background: #ffffff;
+  color: #1e293b;
+}
+
 .form-group textarea {
   resize: vertical;
   min-height: 120px;
