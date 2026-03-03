@@ -800,9 +800,13 @@ def get_accountability_stats():
 # ============================================================================
 
 # Initialize database when app is imported (works with gunicorn)
-db.init_db()
-db.add_seed_data()
-print("CivicPulse database initialized!")
+try:
+    print(f"Initializing database at: {db.DATABASE_PATH}")
+    db.init_db()
+    db.add_seed_data()
+    print("CivicPulse database initialized successfully!")
+except Exception as e:
+    print(f"Database initialization error: {e}")
 
 
 # ============================================================================

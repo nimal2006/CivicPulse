@@ -8,7 +8,7 @@ import hashlib
 from datetime import datetime, timedelta
 import os
 
-# Use /tmp on Render (ephemeral but writable), local path for development
+# Use /tmp on cloud platforms (ephemeral but writable), local path for development
 if os.environ.get('RENDER'):
     DATABASE_PATH = '/tmp/civicpulse.db'
 else:
