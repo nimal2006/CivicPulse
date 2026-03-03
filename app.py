@@ -166,8 +166,9 @@ def allowed_file(filename):
 
 def calculate_severity_from_image(image_path):
     """
-    Calculate garbage severity from image using OpenCV.
-    Analyzes texture complexity (edges) and color variance.
+    Calculate issue severity from image using OpenCV.
+    Analyzes multiple factors: edges, colors, damage indicators, warning markers.
+    Works for garbage, road damage, landslides, infrastructure issues.
     
     Returns: tuple (severity, confidence, analysis_data)
     """
@@ -181,55 +182,133 @@ def calculate_severity_from_image(image_path):
         height, width = img.shape[:2]
         total_pixels = height * width
         
-        # Convert to grayscale for edge detection
+        # Convert to different color spaces
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         
         # Apply Gaussian blur to reduce noise
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         
-        # Edge detection using Canny
+        # ===== 1. Edge Detection (texture complexity) =====
         edges = cv2.Canny(blurred, 50, 150)
-        
-        # Calculate edge ratio (texture complexity)
         edge_pixels = np.count_nonzero(edges)
         edge_ratio = edge_pixels / total_pixels
         
-        # Calculate color variance (indicates variety of garbage)
-        # Convert to HSV for better color analysis
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        
-        # Calculate variance for each channel
+        # ===== 2. Color Variance Analysis =====
         h_variance = np.var(hsv[:, :, 0])
         s_variance = np.var(hsv[:, :, 1])
         v_variance = np.var(hsv[:, :, 2])
-        
-        # Combined color variance score
         color_variance = (h_variance + s_variance + v_variance) / 3
         
-        # Calculate overall complexity score
-        complexity_score = (edge_ratio * 100) + (color_variance / 100)
+        # ===== 3. Damage Color Detection (earth/debris - brown, tan, dirt) =====
+        # Earth tones: brown, tan, beige (landslide, road damage, debris)
+        # HSV ranges for earth/dirt colors
+        lower_earth1 = np.array([5, 30, 50])   # Light brown/tan
+        upper_earth1 = np.array([25, 255, 200])
+        lower_earth2 = np.array([0, 20, 80])   # Darker earth
+        upper_earth2 = np.array([20, 150, 180])
         
-        # Determine severity based on thresholds
-        analysis_data = {
-            "edge_ratio": round(edge_ratio, 4),
-            "color_variance": round(color_variance, 2),
-            "complexity_score": round(complexity_score, 2),
-            "image_dimensions": f"{width}x{height}"
-        }
+        earth_mask1 = cv2.inRange(hsv, lower_earth1, upper_earth1)
+        earth_mask2 = cv2.inRange(hsv, lower_earth2, upper_earth2)
+        earth_mask = cv2.bitwise_or(earth_mask1, earth_mask2)
+        earth_pixels = np.count_nonzero(earth_mask)
+        earth_ratio = earth_pixels / total_pixels
         
-        # Rule-based severity classification
-        if edge_ratio > 0.25 and color_variance > 2000:
+        # ===== 4. Warning Color Detection (orange cones, safety markers) =====
+        # Orange: typical safety cone color
+        lower_orange = np.array([5, 150, 150])
+        upper_orange = np.array([25, 255, 255])
+        orange_mask = cv2.inRange(hsv, lower_orange, upper_orange)
+        orange_pixels = np.count_nonzero(orange_mask)
+        warning_ratio = orange_pixels / total_pixels
+        
+        # ===== 5. Dark Crack Detection (road cracks, structural damage) =====
+        # Look for very dark areas that could be cracks or holes
+        dark_threshold = 40
+        dark_mask = gray < dark_threshold
+        dark_pixels = np.count_nonzero(dark_mask)
+        dark_ratio = dark_pixels / total_pixels
+        
+        # ===== 6. Structural Irregularity (large contours indicating damage) =====
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        large_contours = [c for c in contours if cv2.contourArea(c) > (total_pixels * 0.01)]
+        irregularity_score = len(large_contours) / max(1, len(contours)) if contours else 0
+        
+        # ===== Calculate Severity Score =====
+        severity_score = 0
+        indicators = []
+        
+        # Edge complexity contributes
+        if edge_ratio > 0.20:
+            severity_score += 25
+            indicators.append("high_texture_complexity")
+        elif edge_ratio > 0.12:
+            severity_score += 15
+            indicators.append("moderate_texture")
+        
+        # Earth/debris colors (strong indicator of damage)
+        if earth_ratio > 0.30:
+            severity_score += 35
+            indicators.append("major_earth_exposure")
+        elif earth_ratio > 0.15:
+            severity_score += 20
+            indicators.append("significant_debris")
+        elif earth_ratio > 0.08:
+            severity_score += 10
+            indicators.append("some_debris")
+        
+        # Warning markers present
+        if warning_ratio > 0.005:
+            severity_score += 20
+            indicators.append("safety_markers_present")
+        elif warning_ratio > 0.001:
+            severity_score += 10
+            indicators.append("warning_signs")
+        
+        # Dark areas (cracks, holes, damage)
+        if dark_ratio > 0.15:
+            severity_score += 15
+            indicators.append("major_dark_areas")
+        elif dark_ratio > 0.08:
+            severity_score += 8
+            indicators.append("cracks_detected")
+        
+        # Color variance (chaos/destruction indicator)
+        if color_variance > 2500:
+            severity_score += 15
+            indicators.append("high_color_chaos")
+        elif color_variance > 1500:
+            severity_score += 8
+            indicators.append("color_variation")
+        
+        # Large irregular contours (structural damage)
+        if irregularity_score > 0.3:
+            severity_score += 10
+            indicators.append("structural_irregularity")
+        
+        # Determine final severity
+        if severity_score >= 50:
             severity = "High"
-            confidence = min(95, 70 + int(edge_ratio * 50))
-        elif edge_ratio > 0.15 or color_variance > 1500:
+            confidence = min(95, 75 + int(severity_score / 5))
+        elif severity_score >= 25:
             severity = "Medium"
-            confidence = min(90, 60 + int(edge_ratio * 40))
+            confidence = min(90, 60 + int(severity_score / 3))
         else:
             severity = "Low"
-            confidence = min(85, 50 + int((0.15 - edge_ratio) * 100))
+            confidence = min(85, 50 + int(severity_score))
         
-        analysis_data["severity"] = severity
-        analysis_data["confidence"] = confidence
+        analysis_data = {
+            "edge_ratio": round(edge_ratio, 4),
+            "earth_ratio": round(earth_ratio, 4),
+            "warning_ratio": round(warning_ratio, 5),
+            "dark_ratio": round(dark_ratio, 4),
+            "color_variance": round(color_variance, 2),
+            "severity_score": severity_score,
+            "indicators": indicators,
+            "image_dimensions": f"{width}x{height}",
+            "severity": severity,
+            "confidence": confidence
+        }
         
         return severity, confidence, analysis_data
         
