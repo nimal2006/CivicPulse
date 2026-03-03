@@ -3293,18 +3293,19 @@ body {
   top: calc(100% + 8px);
   right: 0;
   min-width: 180px;
-  background: var(--glass-bg);
+  background: rgba(30, 30, 50, 0.95);
   backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--glass-border);
   border-radius: var(--border-radius-sm);
   padding: 8px;
   display: none;
   box-shadow: 0 10px 30px var(--glass-shadow);
+  z-index: 9999;
 }
 
 .user-dropdown.show,
 .user-dropdown.active {
-  display: block;
+  display: block !important;
 }
 
 .user-dropdown a {
