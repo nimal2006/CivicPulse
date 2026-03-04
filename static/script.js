@@ -1639,11 +1639,11 @@ function initImageUpload() {
     });
   }
 
-  // Auto-analyze when issue type changes to Garbage and image is already uploaded
+  // Auto-analyze when issue type changes and image is already uploaded
   const issueTypeSelect = document.getElementById("issue-type");
   if (issueTypeSelect) {
     issueTypeSelect.addEventListener("change", (e) => {
-      if (e.target.value === "Garbage" && uploadedImageData) {
+      if (uploadedImageData) {
         // Image already uploaded, auto-analyze for severity
         setTimeout(() => analyzeImageForSeverity(), 300);
       }
@@ -1672,21 +1672,11 @@ function handleImageFile(file) {
       previewContainer.classList.remove("hidden");
       showToast("Image uploaded successfully!", "success");
 
-      // Auto-analyze image for garbage issues
-      const issueType = document.getElementById("issue-type").value;
-      if (issueType === "Garbage") {
-        showToast("🔍 Automatically analyzing garbage image...", "info");
-        // Small delay to ensure file input is updated
-        setTimeout(() => {
-          analyzeImageForSeverity();
-        }, 300);
-      } else {
-        // Show prompt for non-garbage issues
-        showToast(
-          "💡 Click 'Auto' button to analyze severity from image",
-          "info",
-        );
-      }
+      // Auto-analyze image for all issue types
+      showToast("🔍 Automatically analyzing image for severity...", "info");
+      setTimeout(() => {
+        analyzeImageForSeverity();
+      }, 300);
     }
   };
   reader.readAsDataURL(file);

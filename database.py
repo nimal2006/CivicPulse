@@ -84,6 +84,16 @@ def init_db():
         )
     ''')
     
+
+    # Create notifications table for admin in-app notifications
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message TEXT NOT NULL,
+            is_read INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     conn.commit()
     
     # Migration: Add blocking columns to admins table if they don't exist
@@ -112,6 +122,43 @@ def init_db():
     print("Database initialized successfully!")
 
 # User operations
+def insert_notification(message):
+    """Insert a new notification message."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO notifications (message) VALUES (?)
+    ''', (message,))
+    conn.commit()
+    conn.close()
+
+def get_unread_notification_count():
+    """Get count of unread notifications."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''SELECT COUNT(*) FROM notifications WHERE is_read = 0''')
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def get_latest_notifications(limit=10):
+    """Get latest notifications (limit N)."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, message, is_read, created_at FROM notifications ORDER BY created_at DESC LIMIT ?
+    ''', (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict_from_row(row) for row in rows]
+
+def mark_all_notifications_read():
+    """Mark all notifications as read."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''UPDATE notifications SET is_read = 1 WHERE is_read = 0''')
+    conn.commit()
+    conn.close()
 def create_user(username, password, name, email, phone, address=""):
     """Create a new user"""
     conn = get_db()

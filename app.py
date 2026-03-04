@@ -32,6 +32,39 @@ import numpy as np
 # Import database module
 import database as db
 
+# Email notification imports
+import smtplib
+from email.message import EmailMessage
+
+# ============================================================================
+# EMAIL NOTIFICATION SYSTEM (GMAIL SMTP)
+# ============================================================================
+def send_email(subject, body):
+    """
+    Send an email using Gmail SMTP.
+    Uses EMAIL_ADDRESS and EMAIL_PASSWORD from environment variables.
+    """
+    EMAIL_ADDRESS = os.environ.get('EMAIL_ADDRESS')
+    EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD')
+    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', EMAIL_ADDRESS)
+    if not EMAIL_ADDRESS or not EMAIL_PASSWORD or not ADMIN_EMAIL:
+        print("[Email] Missing environment variables for email notification.")
+        return False
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = EMAIL_ADDRESS
+        msg['To'] = ADMIN_EMAIL
+        msg.set_content(body)
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            smtp.send_message(msg)
+        print(f"[Email] Notification sent to {ADMIN_EMAIL}")
+        return True
+    except Exception as e:
+        print(f"[Email] Failed to send: {e}")
+        return False
+
 app = Flask(__name__)
 
 # ============================================================================
@@ -705,6 +738,30 @@ def change_password():
 # ADMIN ROUTES
 # ============================================================================
 
+# ============================================================================
+# ADMIN NOTIFICATION API ENDPOINTS
+# ============================================================================
+@app.route("/api/admin/notifications/unread-count", methods=["GET"])
+@admin_required
+def get_unread_notification_count():
+    """Get unread notification count for admin bell badge."""
+    count = db.get_unread_notification_count()
+    return jsonify({"unread_count": count}), 200
+
+@app.route("/api/admin/notifications/latest", methods=["GET"])
+@admin_required
+def get_latest_notifications():
+    """Get latest notifications for admin dropdown."""
+    notifications = db.get_latest_notifications(limit=10)
+    return jsonify({"notifications": notifications}), 200
+
+@app.route("/api/admin/notifications/mark-read", methods=["POST"])
+@admin_required
+def mark_notifications_read():
+    """Mark all notifications as read when admin opens dropdown."""
+    db.mark_all_notifications_read()
+    return jsonify({"message": "Notifications marked as read"}), 200
+
 @app.route("/admin")
 def admin_page():
     """Serve admin dashboard page"""
@@ -982,6 +1039,7 @@ def create_issue():
     except (ValueError, TypeError):
         return jsonify({"error": "Latitude and longitude must be valid numbers"}), 400
     
+
     new_issue = db.create_issue(
         issue_type=data["issue_type"],
         description=str(data["description"]),
@@ -993,9 +1051,27 @@ def create_issue():
         reporter_name=data.get("reporter_name", ""),
         reporter_contact=data.get("reporter_contact", "")
     )
-    
+
     new_issue["priority_score"] = priority_score(new_issue)
-    
+
+    # Email and in-app notification for High severity
+    if new_issue["severity"] == "High":
+        # Prepare email body
+        email_body = f"""
+        High severity issue reported:
+
+        Category: {new_issue['issue_type']}
+        Severity: {new_issue['severity']}
+        Description: {new_issue['description']}
+        Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        """
+        send_email(
+            subject="CivicPulse Alert: High Severity Issue Reported",
+            body=email_body
+        )
+        # In-app notification
+        db.insert_notification(f"High severity issue reported in {new_issue['issue_type']}")
+
     # Include image analysis in response if available
     if image_analysis:
         new_issue["image_analysis"] = image_analysis
